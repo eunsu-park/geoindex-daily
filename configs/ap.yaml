@@ -1,0 +1,11 @@
+# geoindex-daily — daily Ap, 60-day-ahead. The index is a config choice: copy this file
+# to f107.yaml and change `index` to run the same pipeline on F10.7.
+index: ap                 # column of the daily table (ap | f107 | kp | sn)
+input_days: 30            # history fed to the time-series encoder (one solar rotation)
+output_days: 60           # forecast horizon, one value per day
+rotation_days: 27         # recurrence period used by the baselines
+storm_threshold: 30       # daily Ap >= this counts as a storm day (metrics.storm_scores)
+splits:                   # by issue date; revisit — train must span a full solar cycle phase mix
+  train: ["2010-05-13", "2019-12-31"]
+  val:   ["2020-01-01", "2021-12-31"]
+  test:  ["2022-01-01", "2025-12-31"]
