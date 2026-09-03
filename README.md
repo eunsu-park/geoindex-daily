@@ -21,17 +21,21 @@ geoindex_daily/
   windows.py               (30-day input, 60-day target) samples and date splits
   swpc.py                  SWPC forecast parsers: 45-day JSON/text, weekly PRF 27-day outlook
   encoders/moment.py       MOMENT (frozen embedding / forecasting head) over 30-day windows
+  encoders/surya.py        frozen Surya over SuryaBench (t-60, t) pairs → mean / first / G×G grid embeddings
 scripts/
   build_daily_index.py     DB → $GEOINDEX_DAILY_DATA/daily_index.parquet
   eval_baselines.py        baseline scores by lead time → CSV
   fetch_swpc_prf.py        mirror + parse the weekly PRF outlooks (NCEI, 1997–) → parquet
   eval_swpc.py             score SWPC outlooks vs observed Ap, with references on the same pairs
   ts_only.py               time-series-only models: ridge on raw window / MOMENT embedding
+  moment_finetune.py       MOMENT forecasting head (optionally encoder) fine-tuned on the windows
+  compare_on_prf_issues.py like-for-like scores vs the SWPC outlook on the PRF issue dates
+  extract_surya_embeddings.py  daily Surya embeddings from the archive tree → one npz per day
 tests/                     pytest; no DB or NAS needed
 ```
 
-Planned: `encoders/surya.py` (embedding cache from the SuryaBench frames), fusion
-models, MOMENT forecasting-head fine-tuning.
+Planned: fusion models (MOMENT + Surya embeddings), the channel ablation for real-time
+deployment, LoRA on a reduced setup.
 
 ## Setup
 
