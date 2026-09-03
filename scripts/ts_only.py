@@ -85,14 +85,14 @@ def main() -> int:
     print(f"windows: {len(dates)} (train {tr.sum()}, val {va.sum()}, test {te.sum()})")
 
     leads = list(range(1, H + 1))
-    results = {}
+    results, preds = {}, {}
 
     # reference forecasts on the same test samples
     clim = np.full_like(Y[te], Y[tr].mean())
-    results["climatology"] = score_by_lead(Y[te], clim, leads, inv)
+    results["climatology"] = score_by_lead(Y[te], clim, leads, inv); preds["climatology"] = clim
     rec = np.stack([np.array([X_[L - 1 - recurrence_lag(h, cfg["rotation_days"])] if recurrence_lag(h, cfg["rotation_days"]) < L else np.nan
                               for h in leads]) for X_ in X[te]])
-    results["recurrence27"] = score_by_lead(Y[te], rec, leads, inv)
+    results["recurrence27"] = score_by_lead(Y[te], rec, leads, inv); preds["recurrence27"] = rec
 
     feats = {"ridge_raw": X}
     if not args.no_moment:
@@ -101,14 +101,14 @@ def main() -> int:
         seq_len = cfg["moment"]["seq_len"]
         cache = (default_data_dir() / "moment" /
                  f"{model_id.split('/')[-1]}_{cfg['index']}_{cfg.get('ts_transform', 'log1p')}_L{L}.npz")
-        if cache.exists() and len(np.load(cache)["dates"]) == len(dates):
+        if cache.exists() and len(np.load(cache, allow_pickle=True)["dates"]) == len(dates):
             E = np.load(cache)["E"]
             print(f"embeddings from cache {cache.name}: {E.shape}")
         else:
             model = mo.load(model_id, "embedding", device=args.device)
             E = mo.embed(model, X, seq_len)
             cache.parent.mkdir(parents=True, exist_ok=True)
-            np.savez(cache, E=E, dates=dates.strftime("%Y-%m-%d").to_numpy())
+            np.savez(cache, E=E, dates=dates.strftime("%Y-%m-%d").to_numpy().astype("U10"))
             print(f"embeddings computed: {E.shape} → {cache}")
         feats["ridge_moment"] = E
         feats["ridge_both"] = np.concatenate([E, X], axis=1)
@@ -118,12 +118,16 @@ def main() -> int:
         Fz = (F - mu) / sd
         model, alpha = fit_select(Fz[tr], Y[tr], Fz[va], Y[va])
         P = ridge_predict(model, Fz[te])
-        results[name] = score_by_lead(Y[te], P, leads, inv)
+        results[name] = score_by_lead(Y[te], P, leads, inv); preds[name] = P
         print(f"{name}: alpha={alpha}")
 
     table = pd.concat({k: v.set_index("lead") for k, v in results.items()}, axis=1)
     out = default_data_dir() / f"ts_only_{cfg['index']}.csv"
     table.to_csv(out)
+    # test-split forecasts in index units, keyed by issue date, for like-for-like comparisons
+    np.savez(default_data_dir() / f"ts_only_{cfg['index']}_test_preds.npz",
+             dates=dates[te].strftime("%Y-%m-%d").to_numpy().astype("U10"), y=inv(Y[te]),
+             **{k: inv(v) for k, v in preds.items()})
     shown = table.loc[SHOW_LEADS]
     pd.set_option("display.width", 220)
     print("\nMAE (index units) by lead:")
