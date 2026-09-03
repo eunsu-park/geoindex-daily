@@ -4,5 +4,11 @@ pyarrow
 pyyaml
 psycopg2-binary
 pytest
-# Encoders (added when the encoder modules land):
-# torch, momentfm, h5netcdf — Surya is imported from a local clone (see README).
+requests
+pypdf
+torch
+momentfm
+transformers
+huggingface-hub
+h5netcdf
+netCDF4

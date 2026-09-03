@@ -5,6 +5,11 @@ input_days: 30            # history fed to the time-series encoder (one solar ro
 output_days: 60           # forecast horizon, one value per day
 rotation_days: 27         # recurrence period used by the baselines
 storm_threshold: 30       # daily Ap >= this counts as a storm day (metrics.storm_scores)
+metrics: [mae, corr]      # the two that decide the comparison (advisor, 2026-09-03); others are reported alongside
+ts_transform: log1p       # applied to the index before any model sees it (Ap is heavy-tailed); inverted for scoring
+moment:
+  model: AutonLab/MOMENT-1-large   # MOMENT-1-small for smoke tests
+  seq_len: 512                     # MOMENT's fixed context; the 30-day window sits at the end, the rest is masked
 splits:                   # by issue date; revisit — train must span a full solar cycle phase mix
   train: ["2010-05-13", "2019-12-31"]
   val:   ["2020-01-01", "2021-12-31"]

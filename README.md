@@ -19,19 +19,24 @@ geoindex_daily/
   baselines.py             climatology, persistence, 27-day recurrence (honest for h > 27)
   metrics.py               MAE, RMSE, log-MAE, corr, storm POD/FAR/CSI
   windows.py               (30-day input, 60-day target) samples and date splits
+  swpc.py                  SWPC forecast parsers: 45-day JSON/text, weekly PRF 27-day outlook
+  encoders/moment.py       MOMENT (frozen embedding / forecasting head) over 30-day windows
 scripts/
   build_daily_index.py     DB → $GEOINDEX_DAILY_DATA/daily_index.parquet
   eval_baselines.py        baseline scores by lead time → CSV
+  fetch_swpc_prf.py        mirror + parse the weekly PRF outlooks (NCEI, 1997–) → parquet
+  eval_swpc.py             score SWPC outlooks vs observed Ap, with references on the same pairs
+  ts_only.py               time-series-only models: ridge on raw window / MOMENT embedding
 tests/                     pytest; no DB or NAS needed
 ```
 
-Planned: `encoders/` (Surya embedding cache, MOMENT), `models/` (time-series only,
-time-series + image fusion), `eval/swpc.py` (45-day product parser and comparison).
+Planned: `encoders/surya.py` (embedding cache from the SuryaBench frames), fusion
+models, MOMENT forecasting-head fine-tuning.
 
 ## Setup
 
 ```bash
-conda activate geoindex            # pandas, psycopg2, pyarrow, pytest already there
+conda activate geoindex-daily      # requirements.txt: torch, momentfm, transformers, requests, pypdf, ...
 source ~/.solaris_env              # SOLARIS_DB_HOST/PORT/USER/PASSWORD
 export GEOINDEX_DAILY_DATA=~/Projects/GeoIndex/daily   # default; cloud-synced, not the NAS
 ```
