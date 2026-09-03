@@ -35,7 +35,24 @@ def load(model: str = "AutonLab/MOMENT-1-large", task: str = "embedding",
         kw.update({"forecast_horizon": horizon, "head_dropout": 0.1})
     m = MOMENTPipeline.from_pretrained(model, model_kwargs=kw)
     m.init()
-    return m.to(device or device_auto()).eval()
+    device = device or device_auto()
+    if device == "mps":
+        disable_attention_dropout(m)  # MPS scaled_dot_product_attention has no dropout kernel
+    return m.to(device).eval()
+
+
+def disable_attention_dropout(model) -> int:
+    """Zero the float `dropout` attribute of attention modules (T5's SDPA path reads it).
+
+    Needed to train on Apple MPS, where `scaled_dot_product_attention` raises on
+    dropout > 0; regular nn.Dropout layers are left alone. Returns the count changed.
+    """
+    n = 0
+    for mod in model.modules():
+        if isinstance(getattr(mod, "dropout", None), float) and mod.dropout > 0:
+            mod.dropout = 0.0
+            n += 1
+    return n
 
 
 def pack(X: np.ndarray, seq_len: int = 512) -> tuple[torch.Tensor, torch.Tensor]:
