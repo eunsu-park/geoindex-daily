@@ -31,11 +31,15 @@ scripts/
   moment_finetune.py       MOMENT forecasting head (optionally encoder) fine-tuned on the windows
   compare_on_prf_issues.py like-for-like scores vs the SWPC outlook on the PRF issue dates
   extract_surya_embeddings.py  daily Surya embeddings from the archive tree → one npz per day
+  fusion.py                stage-1 fusion: ridge on Ap history + PCA-reduced Surya token, with controls + bootstrap
+  fusion_mlp.py            stage-2 fusion: small MLP heads, 3 seeds
+  plot_report_figures.py   example-case and error-by-lead figures for the vault report
+  render_report_pdf.py     vault markdown report (Obsidian embeds) → PDF via headless Edge
 tests/                     pytest; no DB or NAS needed
 ```
 
-Planned: fusion models (MOMENT + Surya embeddings), the channel ablation for real-time
-deployment, LoRA on a reduced setup.
+Planned: a cycle-phase-balanced split, a physics-shaped image probe (coronal-hole area),
+the 8×8 grid representation, MOMENT-large on the GPU host, the channel ablation, LoRA.
 
 ## Setup
 
