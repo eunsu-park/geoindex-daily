@@ -126,6 +126,67 @@ def by_lead_plot(dates, Y, P, sw, out):
     fig.savefig(out, dpi=120, bbox_inches="tight"); plt.close(fig)
 
 
+def pick_cases(ap, dates, Y, sw):
+    """Automatically choose one test Monday (with a SWPC outlook) per case type."""
+    has = sw.notna().all(axis=1).to_numpy()
+    cand = np.flatnonzero(has)
+    mx, am = Y.max(1), Y.argmax(1) + 1  # peak value and its lead
+    cases = {}
+    used_peaks = []  # peak dates already shown, so the cases are distinct storms
+
+    def best(mask, key):
+        idx = cand[mask[cand]]
+        for i in idx[np.argsort(-key[idx])]:
+            peak = dates[i] + pd.Timedelta(days=int(am[i]))
+            if all(abs((peak - u).days) > 5 for u in used_peaks):
+                used_peaks.append(peak)
+                return i
+        return None
+    cases["Storm at short lead (peak ≤ 7 d)"] = best((mx >= 40) & (am <= 7), mx)
+    cases["Storm at mid lead (8–26 d)"] = best((mx >= 40) & (am >= 8) & (am <= 26), mx)
+    cases["Storm at long lead (27–60 d)"] = best((mx >= 40) & (am >= 27), mx)
+    cases["Quiet horizon (max Ap < 15)"] = best(mx < 15, -mx)
+    # recurrent stream: a disturbed day in the input window that returns ~27 days later
+    rec_score = np.full(len(dates), -np.inf)
+    for i in cand:
+        t = dates[i]
+        x = ap.loc[t - pd.Timedelta(days=29): t].to_numpy()
+        for k in range(1, 27):               # disturbed day at t-k, expected return at lead 27-k
+            if x[29 - k] >= 30 and 1 <= 27 - k <= 60:
+                rec_score[i] = max(rec_score[i], min(x[29 - k], Y[i][27 - k - 1]))
+    cases["Recurrent stream (input storm returns ~27 d later)"] = best(np.isfinite(rec_score), rec_score)
+    return {k: v for k, v in cases.items() if v is not None}
+
+
+def cases_plot(ap, dates, Y, P, sw, cases, out):
+    n = len(cases)
+    fig, axes = plt.subplots(n, 1, figsize=(14, 3.3 * n), sharex=True)
+    for ax, (title, i) in zip(np.atleast_1d(axes), cases.items()):
+        issue = dates[i]
+        t_in = np.arange(-29, 1); t_out = np.arange(1, 61)
+        x_in = ap.loc[issue - pd.Timedelta(days=29): issue].to_numpy()
+        ax.plot(t_in, x_in, "b-", linewidth=1.5, label="Input (daily Ap, 30 d)")
+        ax.plot(t_out, Y[i], "g-o", linewidth=2, markersize=3, label="Target (observed)")
+        ax.plot(t_out, P["TS"][i], color="tab:red", linestyle="--", marker="x", markersize=4, linewidth=1.6, label="Ridge, 30-day Ap")
+        ax.plot(t_out, P["TS_IMG7"][i], color="tab:brown", linestyle="--", linewidth=1.6, label="Ridge + Surya token")
+        ax.plot(t_out, P["recurrence27"][i], color="tab:olive", linestyle="-.", linewidth=1.2, label="Recurrence-27")
+        ax.plot(t_out, P["climatology"][i], color="gray", linestyle=":", linewidth=1.2, label="Climatology")
+        row = sw.loc[issue]
+        ax.plot(row.index.to_numpy(), row.to_numpy(), color="tab:orange", linestyle="-", marker="s", markersize=3, linewidth=1.6, label="SWPC 27-day outlook")
+        ax.axvline(0, color="gray", linestyle=":", alpha=0.6)
+        ax.set_ylabel("daily Ap", fontsize=10); ax.grid(alpha=0.3)
+        ax.set_title(f"{title} — issue {issue:%Y-%m-%d}", fontsize=10, fontweight="bold", loc="left")
+        y26, s26 = Y[i][:26], row.to_numpy()[:26]
+        txt = (f"Ridge  MAE {np.abs(P['TS'][i] - Y[i]).mean():.1f}  CC {cc(Y[i], P['TS'][i]):.2f}   |   "
+               f"Ridge+Surya  MAE {np.abs(P['TS_IMG7'][i] - Y[i]).mean():.1f}  CC {cc(Y[i], P['TS_IMG7'][i]):.2f}   |   "
+               f"SWPC 1–26 d  MAE {np.nanmean(np.abs(s26 - y26)):.1f}  CC {cc(y26, s26):.2f}")
+        ax.text(0.99, 0.95, txt, transform=ax.transAxes, ha="right", va="top", fontsize=8,
+                bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.6))
+    np.atleast_1d(axes)[0].legend(loc="upper left", fontsize=8, ncol=4)
+    np.atleast_1d(axes)[-1].set_xlabel("Lead (days, relative to issue day)", fontsize=10)
+    fig.tight_layout(); fig.savefig(out, dpi=120, bbox_inches="tight"); plt.close(fig)
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--issue", default=None, help="issue date YYYY-MM-DD (default: auto-pick)")
@@ -143,6 +204,10 @@ def main() -> int:
         issue = dates[has][int(np.argmax(Y[has].max(1)))]
     example_plot(ap, dates, Y, P, sw, issue, out / f"example_{issue:%Y%m%d}.png")
     by_lead_plot(dates, Y, P, sw, out / "error_by_lead.png")
+    cases = pick_cases(ap, dates, Y, sw)
+    cases_plot(ap, dates, Y, P, sw, cases, out / "example_cases.png")
+    for k, i in cases.items():
+        print(f"  case: {k} → {dates[i].date()} (max Ap {Y[i].max():.0f} at lead {Y[i].argmax()+1})")
     print(f"issue {issue.date()} → {out}/example_{issue:%Y%m%d}.png, {out}/error_by_lead.png")
     return 0
 
