@@ -158,10 +158,11 @@ def pick_cases(ap, dates, Y, sw):
     return {k: v for k, v in cases.items() if v is not None}
 
 
-def cases_plot(ap, dates, Y, P, sw, cases, out):
-    n = len(cases)
-    fig, axes = plt.subplots(n, 1, figsize=(14, 3.3 * n), sharex=True)
-    for ax, (title, i) in zip(np.atleast_1d(axes), cases.items()):
+def cases_plot(ap, dates, Y, P, sw, cases, out_dir, slugs):
+    """One PNG per case: `<out_dir>/case_<slug>_<issue>.png`. Returns the file list."""
+    files = []
+    for (title, i), slug in zip(cases.items(), slugs):
+        fig, ax = plt.subplots(figsize=(14, 4.2))
         issue = dates[i]
         t_in = np.arange(-29, 1); t_out = np.arange(1, 61)
         x_in = ap.loc[issue - pd.Timedelta(days=29): issue].to_numpy()
@@ -175,16 +176,19 @@ def cases_plot(ap, dates, Y, P, sw, cases, out):
         ax.plot(row.index.to_numpy(), row.to_numpy(), color="tab:orange", linestyle="-", marker="s", markersize=3, linewidth=1.6, label="SWPC 27-day outlook")
         ax.axvline(0, color="gray", linestyle=":", alpha=0.6)
         ax.set_ylabel("daily Ap", fontsize=10); ax.grid(alpha=0.3)
-        ax.set_title(f"{title} — issue {issue:%Y-%m-%d}", fontsize=10, fontweight="bold", loc="left")
+        ax.set_title(f"{title} — issue {issue:%Y-%m-%d} — daily Ap, 30 d in / 60 d out", fontsize=11, fontweight="bold")
         y26, s26 = Y[i][:26], row.to_numpy()[:26]
         txt = (f"Ridge  MAE {np.abs(P['TS'][i] - Y[i]).mean():.1f}  CC {cc(Y[i], P['TS'][i]):.2f}   |   "
                f"Ridge+Surya  MAE {np.abs(P['TS_IMG7'][i] - Y[i]).mean():.1f}  CC {cc(Y[i], P['TS_IMG7'][i]):.2f}   |   "
                f"SWPC 1–26 d  MAE {np.nanmean(np.abs(s26 - y26)):.1f}  CC {cc(y26, s26):.2f}")
-        ax.text(0.99, 0.95, txt, transform=ax.transAxes, ha="right", va="top", fontsize=8,
+        ax.text(0.99, 0.03, txt, transform=ax.transAxes, ha="right", va="bottom", fontsize=8,
                 bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.6))
-    np.atleast_1d(axes)[0].legend(loc="upper left", fontsize=8, ncol=4)
-    np.atleast_1d(axes)[-1].set_xlabel("Lead (days, relative to issue day)", fontsize=10)
-    fig.tight_layout(); fig.savefig(out, dpi=120, bbox_inches="tight"); plt.close(fig)
+        ax.legend(loc="upper left", fontsize=8, ncol=4)
+        ax.set_xlabel("Lead (days, relative to issue day)", fontsize=10)
+        f = out_dir / f"case_{slug}_{issue:%Y%m%d}.png"
+        fig.savefig(f, dpi=120, bbox_inches="tight"); plt.close(fig)
+        files.append(f)
+    return files
 
 
 def main() -> int:
@@ -202,13 +206,15 @@ def main() -> int:
     else:  # the PRF Monday whose 60-day horizon holds the largest observed Ap
         has = sw.notna().all(axis=1).to_numpy()
         issue = dates[has][int(np.argmax(Y[has].max(1)))]
-    example_plot(ap, dates, Y, P, sw, issue, out / f"example_{issue:%Y%m%d}.png")
+    if args.issue:
+        example_plot(ap, dates, Y, P, sw, issue, out / f"example_{issue:%Y%m%d}.png")
     by_lead_plot(dates, Y, P, sw, out / "error_by_lead.png")
     cases = pick_cases(ap, dates, Y, sw)
-    cases_plot(ap, dates, Y, P, sw, cases, out / "example_cases.png")
-    for k, i in cases.items():
-        print(f"  case: {k} → {dates[i].date()} (max Ap {Y[i].max():.0f} at lead {Y[i].argmax()+1})")
-    print(f"issue {issue.date()} → {out}/example_{issue:%Y%m%d}.png, {out}/error_by_lead.png")
+    slugs = ["storm_short", "storm_mid", "storm_long", "quiet", "recurrent"][: len(cases)]
+    files = cases_plot(ap, dates, Y, P, sw, cases, out, slugs)
+    for (k, i), f in zip(cases.items(), files):
+        print(f"  case: {k} → {dates[i].date()} (max Ap {Y[i].max():.0f} at lead {Y[i].argmax()+1}) → {f.name}")
+    print(f"→ {out}/error_by_lead.png" + (f", example_{issue:%Y%m%d}.png" if args.issue else ""))
     return 0
 
 
