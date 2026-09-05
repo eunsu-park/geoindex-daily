@@ -23,20 +23,25 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--config", default="configs/ap.yaml")
     p.add_argument("--max-lead", type=int, default=26)
+    p.add_argument("--preds", nargs="+", default=None,
+                   help="test-prediction npz files (default: ts_only_<index>_test_preds.npz)")
     args = p.parse_args()
     cfg = yaml.safe_load(Path(args.config).read_text())
     idx = cfg["index"]
     d = default_data_dir()
 
-    z = np.load(d / f"ts_only_{idx}_test_preds.npz")
-    dates = pd.to_datetime(z["dates"])
-    models = [k for k in z.files if k not in ("dates", "y")]
-    long = []
-    for k in ["y"] + models:
-        arr = z[k]
-        df = pd.DataFrame(arr[:, : args.max_lead], index=dates, columns=range(1, args.max_lead + 1))
-        long.append(df.stack().rename(k))
-    ours = pd.concat(long, axis=1)
+    files = [Path(f).expanduser() for f in args.preds] if args.preds else [d / f"ts_only_{idx}_test_preds.npz"]
+    long, models = [], []
+    for i, f in enumerate(files):
+        z = np.load(f)
+        dates = pd.to_datetime(z["dates"])
+        keys = (["y"] if i == 0 else []) + [k for k in z.files if k not in ("dates", "y")]
+        for k in keys:
+            df = pd.DataFrame(z[k][:, : args.max_lead], index=dates, columns=range(1, args.max_lead + 1))
+            long.append(df.stack().rename(k))
+            if k != "y":
+                models.append(k)
+    ours = pd.concat(long, axis=1, join="inner")
     ours.index.names = ["issue_date", "lead"]
     ours = ours.reset_index()
 
