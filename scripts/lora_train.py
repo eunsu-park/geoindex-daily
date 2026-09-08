@@ -106,10 +106,25 @@ class Head(nn.Module):
         return self.mlp(x)
 
 
+def run_backbone(backbone, tokens, freeze_through: int, train: bool):
+    """Blocks 0..freeze_through under no_grad (no activations kept), the rest with grad and
+    activation checkpointing. Block indices follow Surya's chain: 0-1 spectral, 2-9 attention."""
+    from itertools import chain
+    from torch.utils.checkpoint import checkpoint
+    blocks = list(chain(backbone.blocks_spectral_gating, backbone.blocks_attention))
+    x = tokens
+    with torch.no_grad():
+        for blk in blocks[: freeze_through + 1]:
+            x = blk(x, None)
+    for blk in blocks[freeze_through + 1:]:
+        x = checkpoint(blk, x, None, use_reentrant=False) if train else blk(x, None)
+    return x
+
+
 class SuryaApModel(nn.Module):
-    def __init__(self, backbone, mode, n_ts, horizon, d_img=128, grid=8):
+    def __init__(self, backbone, mode, n_ts, horizon, d_img=128, grid=8, freeze_through=1):
         super().__init__()
-        self.mode = mode
+        self.mode, self.freeze_through = mode, freeze_through
         self.backbone = backbone if mode != "ts" else None
         self.pool = GridAttnPool(1280, d_img, grid) if mode != "ts" else None
         self.head = Head(n_ts + (d_img if mode != "ts" else 0), horizon)
@@ -119,16 +134,18 @@ class SuryaApModel(nn.Module):
         if self.mode != "ts":
             if self.mode == "frozen":
                 with torch.no_grad():
-                    out = self.backbone(tokens)
+                    out = run_backbone(self.backbone, tokens, 9, False)
             else:
-                out = self.backbone(tokens)
+                out = run_backbone(self.backbone, tokens, self.freeze_through, self.training)
             parts.append(self.pool(out))
         return self.head(torch.cat(parts, dim=1))
 
 
-def add_lora(backbone, rank, alpha, dropout, targets="qkv,proj"):
+def add_lora(backbone, rank, alpha, dropout, targets="qkv,proj", first_block=2):
+    """LoRA on attention blocks with chain index >= first_block (attention block i = chain index i+2)."""
     from peft import LoraConfig, inject_adapter_in_model
-    pattern = r".*blocks_attention\.\d+\.(attn\.(qkv|proj)" + (r"|mlp\.(fc1|fc2)" if "fc" in targets else "") + ")"
+    idx = "|".join(str(i) for i in range(max(0, first_block - 2), 8))
+    pattern = r".*blocks_attention\.(" + idx + r")\.(attn\.(qkv|proj)" + (r"|mlp\.(fc1|fc2)" if "fc" in targets else "") + ")"
     cfg = LoraConfig(r=rank, lora_alpha=alpha, lora_dropout=dropout, target_modules=pattern, bias="none")
     return inject_adapter_in_model(cfg, backbone)
 
@@ -156,6 +173,8 @@ def main() -> int:
     p.add_argument("--alpha", type=int, default=16)
     p.add_argument("--lora-dropout", type=float, default=0.05)
     p.add_argument("--targets", default="qkv,proj", help="'qkv,proj' or 'qkv,proj,fc'")
+    p.add_argument("--freeze-through", type=int, default=1,
+                   help="run chain blocks 0..K under no_grad; LoRA and gradients only beyond K (1 = spectral blocks frozen, 5 = fallback)")
     p.add_argument("--lr-lora", type=float, default=1e-4)
     p.add_argument("--lr-head", type=float, default=1e-3)
     p.add_argument("--batch", type=int, default=2)
@@ -188,10 +207,9 @@ def main() -> int:
         backbone = model_s.backbone
         for p_ in backbone.parameters():
             p_.requires_grad_(False)
-        backbone._checkpoint_layers = list(range(10))
         if args.mode == "lora":
-            backbone = add_lora(backbone, args.rank, args.alpha, args.lora_dropout, args.targets)
-    model = SuryaApModel(backbone, args.mode, Xz.shape[1], H).to(device)
+            backbone = add_lora(backbone, args.rank, args.alpha, args.lora_dropout, args.targets, args.freeze_through + 1)
+    model = SuryaApModel(backbone, args.mode, Xz.shape[1], H, freeze_through=args.freeze_through).to(device)
     lora_params = [p_ for n, p_ in model.named_parameters() if "lora_" in n]
     other_params = [p_ for n, p_ in model.named_parameters() if p_.requires_grad and "lora_" not in n]
     print(f"trainable: lora {sum(p_.numel() for p_ in lora_params)/1e6:.2f}M, pooling+head {sum(p_.numel() for p_ in other_params)/1e6:.2f}M")
@@ -211,7 +229,7 @@ def main() -> int:
     warm = steps_per_epoch
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: min(1.0, (s + 1) / warm) * 0.5 * (1 + math.cos(math.pi * min(1.0, max(0, s - warm) / max(1, total_steps - warm)))))
 
-    tag = args.tag or f"lora_{args.mode}_{args.ts_block}_r{args.rank}_s{args.seed}"
+    tag = args.tag or f"lora_{args.mode}_{args.ts_block}_r{args.rank}_f{args.freeze_through}_s{args.seed}"
     out_dir = default_data_dir() / "lora"
     out_dir.mkdir(parents=True, exist_ok=True)
 
