@@ -36,10 +36,17 @@ DTYPES = {"bf16": torch.bfloat16, "fp16": torch.float16, "fp32": torch.float32}
 
 @torch.no_grad()
 def front_end(model, prev, now, sc, device):
-    """Transform + patch embedding + positional encoding → (65,536, 1,280) in the model dtype."""
-    ts = np.stack([su.transform(prev, sc), su.transform(now, sc)], axis=1)[None]  # (1, C, 2, H, W)
+    """Transform (on the GPU) + patch embedding + positional encoding → (65,536, 1,280) in the model dtype.
+
+    The signum-log transform over 2 × 13 × 4096² values takes seconds in numpy and
+    milliseconds on the GPU, so the raw frames go to the device first."""
     dtype = next(model.parameters()).dtype
-    x = torch.from_numpy(ts).to(device=device, dtype=dtype)
+    raw = torch.from_numpy(np.stack([prev, now], axis=1)).to(device=device, non_blocking=True)  # (C, 2, H, W) float32
+    sl, mean, std, eps = (torch.as_tensor(sc[k], dtype=torch.float32, device=device).view(-1, 1, 1, 1)
+                          for k in ("sl", "mean", "std", "eps"))
+    x = raw * sl
+    x = torch.sign(x) * torch.log1p(torch.abs(x))
+    x = ((x - mean) / (std + eps)).to(dtype)[None]  # (1, C, 2, H, W)
     dt = torch.tensor([[1.0, 0.0]], dtype=torch.float32, device=device)
     return model.embedding(x, dt)[0]
 
