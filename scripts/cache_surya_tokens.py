@@ -3,8 +3,8 @@
 For each issue day, read the (t−60 min, t) SuryaBench pair, apply Surya's transform and
 the frozen front end (16×16 patch embedding + positional encoding) and save the resulting
 65,536 × 1,280 token map. LoRA later trains the backbone from these files instead of
-re-reading 1.2 GB of frames per sample. Frames are read in a prefetch thread while the GPU
-embeds the previous pair. Resumable: existing files are skipped; `index.csv` lists them.
+re-reading 1.2 GB of frames per sample. Frames are gzip-compressed and HDF5 decompresses on one core (~3.8 s per
+frame), so several reader processes decode pairs in parallel while the GPU embeds. Resumable: existing files are skipped; `index.csv` lists them.
 
     python scripts/cache_surya_tokens.py --start 2016-01-01 --end 2016-01-20 --limit 20 --validate 20   # smoke
     python scripts/cache_surya_tokens.py --start 2016-01-01 --end 2024-12-31                             # reduced set
@@ -16,7 +16,7 @@ import argparse
 import csv
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 from datetime import timedelta
 from pathlib import Path
 
@@ -75,6 +75,8 @@ def main() -> int:
     p.add_argument("--device", default=None)
     p.add_argument("--limit", type=int, default=None)
     p.add_argument("--validate", type=int, default=0)
+    p.add_argument("--readers", type=int, default=4,
+                   help="reader processes: the frames are gzip-compressed and HDF5 decompresses single-threaded (~3.8 s per frame)")
     args = p.parse_args()
 
     archive = Path(args.archive)
@@ -103,7 +105,7 @@ def main() -> int:
     ok = fail = 0
     t0 = time.time()
     new_index = not index_path.exists()
-    with open(index_path, "a", newline="") as idx, ThreadPoolExecutor(1) as pool:
+    with open(index_path, "a", newline="") as idx, ProcessPoolExecutor(args.readers) as pool:
         w = csv.writer(idx)
         if new_index:
             w.writerow(["date", "effective_time", "file"])
@@ -120,10 +122,18 @@ def main() -> int:
                 return (a, r[0], pool.submit(read_pair, (r[1], r[2])))
             return None
 
-        pending = queue_next()
-        while pending is not None:
-            a, eff, fut = pending
-            pending = queue_next()  # prefetch the next pair while this one is embedded
+        from collections import deque
+        queue = deque()
+        while len(queue) < args.readers:
+            nxt = queue_next()
+            if nxt is None:
+                break
+            queue.append(nxt)
+        while queue:
+            a, eff, fut = queue.popleft()
+            nxt = queue_next()  # keep `readers` pairs in flight
+            if nxt is not None:
+                queue.append(nxt)
             try:
                 prev, now = fut.result()
                 tok = front_end(model, prev, now, sc, device)
