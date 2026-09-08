@@ -74,8 +74,12 @@ def device_auto() -> str:
     return "cpu"
 
 
-def load(ckpt_dir: Path, surya_repo: Path, device: str | None = None):
-    """Frozen Surya backbone in token-return mode. Returns `(model, config, scaler arrays, device)`."""
+def load(ckpt_dir: Path, surya_repo: Path, device: str | None = None, dtype=None):
+    """Frozen Surya backbone in token-return mode. Returns `(model, config, scaler arrays, device)`.
+
+    `dtype` (e.g. torch.bfloat16) casts the whole model after loading; None keeps float32,
+    which is what the cached embeddings were produced with.
+    """
     ckpt_dir, surya_repo = Path(ckpt_dir), Path(surya_repo)
     if str(surya_repo) not in sys.path:
         sys.path.insert(0, str(surya_repo))
@@ -105,6 +109,8 @@ def load(ckpt_dir: Path, surya_repo: Path, device: str | None = None):
     if bad_missing or bad_unexpected:
         raise RuntimeError(f"state dict mismatch: missing {bad_missing[:5]}, unexpected {bad_unexpected[:5]}")
     model = model.to(device).eval()
+    if dtype is not None:
+        model = model.to(dtype)
     sc = scaler_arrays(yaml.safe_load((ckpt_dir / "scalers.yaml").read_text()), channels)
     return model, cfg, sc, device
 
@@ -114,7 +120,8 @@ def embed_pair(model, frame_prev: np.ndarray, frame_now: np.ndarray, sc: dict, d
                grid: int = 8, cfg: dict | None = None) -> dict[str, np.ndarray]:
     """Embeddings for one (t−60, t) pair of raw frames `(C, H, W)`."""
     ts = np.stack([transform(frame_prev, sc), transform(frame_now, sc)], axis=1)[None]  # (1,C,2,H,W)
-    batch = {"ts": torch.from_numpy(ts).to(device),
+    dtype = next(model.parameters()).dtype
+    batch = {"ts": torch.from_numpy(ts).to(device=device, dtype=dtype),
              "time_delta_input": torch.tensor([[1.0, 0.0]], dtype=torch.float32, device=device)}
     tokens = model(batch)
     if device == "mps":
