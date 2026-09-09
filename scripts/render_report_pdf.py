@@ -70,7 +70,7 @@ def print_pdf(html_path: Path, pdf_path: Path) -> None:
         raise SystemExit("no Edge/Chrome/Chromium found for PDF printing")
     subprocess.run([browser, "--headless=new", "--disable-gpu", "--no-pdf-header-footer",
                     f"--print-to-pdf={pdf_path}", f"file://{html_path}"],
-                   check=True, capture_output=True, timeout=180)
+                   check=True, capture_output=True, timeout=600)
 
 
 def main() -> int:

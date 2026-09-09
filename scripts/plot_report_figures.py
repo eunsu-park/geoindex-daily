@@ -191,14 +191,85 @@ def cases_plot(ap, dates, Y, P, sw, cases, out_dir, slugs):
     return files
 
 
+def load_arms(specs, d):
+    """--arm file|key|label|color|linestyle → (dates, Y, {key: preds}, styles). All files must share dates."""
+    dates = Y = None
+    P, styles = {}, {}
+    for spec in specs:
+        f, key, label, color, ls = spec.split("|")
+        z = np.load(Path(f).expanduser())
+        dd = pd.to_datetime(z["dates"])
+        if dates is None:
+            dates, Y = dd, z["y"]
+        else:
+            assert (dd == dates).all(), f"{f}: issue dates differ"
+        P[key] = z[key]; styles[key] = (label, color, ls)
+    # climatology / recurrence from ts_only, aligned
+    t1 = np.load(d / "ts_only_ap_test_preds.npz")
+    idx = pd.Index(pd.to_datetime(t1["dates"])).get_indexer(dates); assert (idx >= 0).all()
+    P["climatology"], P["recurrence27"] = t1["climatology"][idx], t1["recurrence27"][idx]
+    styles["climatology"] = ("Climatology", "gray", ":"); styles["recurrence27"] = ("Recurrence-27", "tab:olive", "-.")
+    return dates, Y, P, styles
+
+
+def cases_plot_arms(ap, dates, Y, P, styles, sw, cases, out_dir, slugs, prefix, main_key):
+    files = []
+    for (title, i), slug in zip(cases.items(), slugs):
+        fig, ax = plt.subplots(figsize=(14, 4.2))
+        issue = dates[i]
+        t_in = np.arange(-29, 1); t_out = np.arange(1, 61)
+        x_in = ap.loc[issue - pd.Timedelta(days=29): issue].to_numpy()
+        ax.plot(t_in, x_in, "b-", linewidth=1.5, label="Input (daily Ap, 30 d)")
+        ax.plot(t_out, Y[i], "g-o", linewidth=2, markersize=3, label="Target (observed)")
+        for k, (lab, col, ls) in styles.items():
+            ax.plot(t_out, P[k][i], color=col, linestyle=ls, marker="x" if k == main_key else None,
+                    markersize=4, linewidth=1.6 if k not in ("climatology", "recurrence27") else 1.2, label=lab)
+        row = sw.loc[issue]
+        ax.plot(row.index.to_numpy(), row.to_numpy(), color="tab:orange", linestyle="-", marker="s", markersize=3, linewidth=1.6, label="SWPC 27-day outlook")
+        ax.axvline(0, color="gray", linestyle=":", alpha=0.6)
+        ax.set_ylabel("daily Ap", fontsize=10); ax.grid(alpha=0.3)
+        ax.set_title(f"{title} — issue {issue:%Y-%m-%d} — daily Ap, 30 d in / 60 d out", fontsize=11, fontweight="bold")
+        y26, s26 = Y[i][:26], row.to_numpy()[:26]
+        parts = [f"{styles[k][0]}  MAE {np.abs(P[k][i] - Y[i]).mean():.1f}  CC {cc(Y[i], P[k][i]):.2f}" for k in styles if k not in ("climatology", "recurrence27")]
+        parts.append(f"SWPC 1–26 d  MAE {np.nanmean(np.abs(s26 - y26)):.1f}  CC {cc(y26, s26):.2f}")
+        ax.text(0.99, 0.03, "   |   ".join(parts), transform=ax.transAxes, ha="right", va="bottom", fontsize=8,
+                bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.6))
+        ax.legend(loc="upper left", fontsize=8, ncol=4)
+        ax.set_xlabel("Lead (days, relative to issue day)", fontsize=10)
+        f = out_dir / f"{prefix}case_{slug}_{issue:%Y%m%d}.png"
+        fig.savefig(f, dpi=120, bbox_inches="tight"); plt.close(fig); files.append(f)
+    return files
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--issue", default=None, help="issue date YYYY-MM-DD (default: auto-pick)")
     p.add_argument("--out", default=str(VAULT_FIG))
+    p.add_argument("--arm", action="append", default=None,
+                   help="file.npz|key|label|color|linestyle — plot these forecasts instead of the fusion defaults (repeatable)")
+    p.add_argument("--issue-dates", nargs="+", default=None, help="fixed case issue dates (with --arm)")
+    p.add_argument("--prefix", default="", help="file-name prefix for the case figures (with --arm)")
     args = p.parse_args()
     d = default_data_dir()
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)
     ap = load_daily()["ap"]
+    if args.arm:
+        dates, Y, P, styles = load_arms(args.arm, d)
+        sw = swpc_on(dates, d)
+        titles = ["Storm at short lead (peak ≤ 7 d)", "Storm at mid lead (8–26 d)", "Storm at long lead (27–60 d)",
+                  "Quiet horizon (max Ap < 15)", "Recurrent stream (input storm returns ~27 d later)"]
+        slugs = ["storm_short", "storm_mid", "storm_long", "quiet", "recurrent"]
+        cases = {}
+        for t, ds in zip(titles, args.issue_dates or []):
+            hit = np.flatnonzero(dates == pd.Timestamp(ds))
+            if len(hit):
+                cases[t] = int(hit[0])
+            else:
+                print(f"  no sample for {ds}, skipped")
+        main_key = args.arm[0].split("|")[1]
+        files = cases_plot_arms(ap, dates, Y, P, styles, sw, cases, out, slugs, args.prefix, main_key)
+        print("\n".join(f.name for f in files))
+        return 0
     dates, Y, P = load_preds(d)
     sw = swpc_on(dates, d)
     if args.issue:
