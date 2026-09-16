@@ -1,0 +1,18 @@
+# geoindex-daily — daily Ap, 60-day-ahead, on the full GFZ record from 1985.
+# Same task as ap.yaml; only the data source (GFZ Kp/Ap file instead of OMNI 2010–2025)
+# and the split bounds differ. Build the table with scripts/build_daily_index_gfz.py.
+index: ap
+data_file: daily_index_gfz.parquet   # under $GEOINDEX_DAILY_DATA
+input_days: 30
+output_days: 60
+rotation_days: 27
+storm_threshold: 30
+metrics: [mae, corr]
+ts_transform: log1p
+moment:
+  model: AutonLab/MOMENT-1-large
+  seq_len: 512
+splits:                   # by issue date, inclusive
+  train: ["1985-01-01", "2019-12-31"]
+  val:   ["2020-01-01", "2021-12-31"]
+  test:  ["2022-01-01", "2026-12-31"]   # runs to the last issue date that has 60 days of truth
