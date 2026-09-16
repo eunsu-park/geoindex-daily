@@ -191,7 +191,7 @@ def cases_plot(ap, dates, Y, P, sw, cases, out_dir, slugs):
     return files
 
 
-def load_arms(specs, d):
+def load_arms(specs, d, ref_npz=None):
     """--arm file|key|label|color|linestyle → (dates, Y, {key: preds}, styles). All files must share dates."""
     dates = Y = None
     P, styles = {}, {}
@@ -203,9 +203,10 @@ def load_arms(specs, d):
             dates, Y = dd, z["y"]
         else:
             assert (dd == dates).all(), f"{f}: issue dates differ"
-        P[key] = z[key]; styles[key] = (label, color, ls)
+        alias = key if key not in P else f"{key}_{len(P)}"  # two files may share an npz key (e.g. 'sinet')
+        P[alias] = z[key]; styles[alias] = (label, color, ls)
     # climatology / recurrence from ts_only, aligned
-    t1 = np.load(d / "ts_only_ap_test_preds.npz")
+    t1 = np.load(Path(ref_npz).expanduser() if ref_npz else d / "ts_only_ap_test_preds.npz")
     idx = pd.Index(pd.to_datetime(t1["dates"])).get_indexer(dates); assert (idx >= 0).all()
     P["climatology"], P["recurrence27"] = t1["climatology"][idx], t1["recurrence27"][idx]
     styles["climatology"] = ("Climatology", "gray", ":"); styles["recurrence27"] = ("Recurrence-27", "tab:olive", "-.")
@@ -249,12 +250,13 @@ def main() -> int:
                    help="file.npz|key|label|color|linestyle — plot these forecasts instead of the fusion defaults (repeatable)")
     p.add_argument("--issue-dates", nargs="+", default=None, help="fixed case issue dates (with --arm)")
     p.add_argument("--prefix", default="", help="file-name prefix for the case figures (with --arm)")
+    p.add_argument("--ref-npz", default=None, help="npz providing climatology/recurrence27 (default: ts_only_ap_test_preds.npz)")
     args = p.parse_args()
     d = default_data_dir()
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)
     ap = load_daily()["ap"]
     if args.arm:
-        dates, Y, P, styles = load_arms(args.arm, d)
+        dates, Y, P, styles = load_arms(args.arm, d, args.ref_npz)
         sw = swpc_on(dates, d)
         titles = ["Storm at short lead (peak ≤ 7 d)", "Storm at mid lead (8–26 d)", "Storm at long lead (27–60 d)",
                   "Quiet horizon (max Ap < 15)", "Recurrent stream (input storm returns ~27 d later)"]
@@ -266,7 +268,7 @@ def main() -> int:
                 cases[t] = int(hit[0])
             else:
                 print(f"  no sample for {ds}, skipped")
-        main_key = args.arm[0].split("|")[1]
+        main_key = next(iter(styles))
         files = cases_plot_arms(ap, dates, Y, P, styles, sw, cases, out, slugs, args.prefix, main_key)
         print("\n".join(f.name for f in files))
         return 0

@@ -27,7 +27,9 @@ scripts/
   eval_baselines.py        baseline scores by lead time → CSV
   load_swpc_prf.py         space_weather.swpc_prf_outlook (solaris-data) → local parquet
   eval_swpc.py             score SWPC outlooks vs observed Ap, with references on the same pairs
-  ts_only.py               time-series-only models: ridge on raw window / MOMENT embedding
+  ts_only.py               time-series-only models: ridge on raw window / MOMENT embedding (--tag for a second data source)
+  build_daily_index_gfz.py GFZ Kp_ap_Ap_SN_F107_since_1932.txt → daily_index_gfz.parquet (1985–present; configs/ap_1985.yaml)
+  sinet_train.py           SINet (co-author's TimesNet-style F10.7 model, geoindex_daily/models/sinet.py) on the daily windows, 3 seeds
   moment_finetune.py       MOMENT forecasting head (optionally encoder) fine-tuned on the windows
   compare_on_prf_issues.py like-for-like scores vs the SWPC outlook on the PRF issue dates
   extract_surya_embeddings.py  daily Surya embeddings from the archive tree → one npz per day

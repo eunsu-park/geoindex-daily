@@ -73,12 +73,15 @@ def main() -> int:
     p.add_argument("--moment", default=None, help="MOMENT model id (default from config)")
     p.add_argument("--no-moment", action="store_true")
     p.add_argument("--device", default=None)
+    p.add_argument("--tag", default="", help="suffix for the output files (e.g. 1985 for the GFZ-record run)")
     args = p.parse_args()
+    tag = f"_{args.tag}" if args.tag else ""
 
     cfg = yaml.safe_load(Path(args.config).read_text())
     fwd, inv = TRANSFORMS[cfg.get("ts_transform", "log1p")]
     L, H = cfg["input_days"], cfg["output_days"]
-    s = load_daily(args.data)[cfg["index"]]
+    data_path = Path(args.data).expanduser() if args.data else default_data_dir() / cfg.get("data_file", "daily_index.parquet")
+    s = load_daily(data_path)[cfg["index"]]
     X, Y, dates = make_windows(fwd(s), L, H)
     masks = split(dates, cfg["splits"])
     tr, va, te = masks["train"], masks["val"], masks["test"]
@@ -122,10 +125,10 @@ def main() -> int:
         print(f"{name}: alpha={alpha}")
 
     table = pd.concat({k: v.set_index("lead") for k, v in results.items()}, axis=1)
-    out = default_data_dir() / f"ts_only_{cfg['index']}.csv"
+    out = default_data_dir() / f"ts_only_{cfg['index']}{tag}.csv"
     table.to_csv(out)
     # test-split forecasts in index units, keyed by issue date, for like-for-like comparisons
-    np.savez(default_data_dir() / f"ts_only_{cfg['index']}_test_preds.npz",
+    np.savez(default_data_dir() / f"ts_only_{cfg['index']}{tag}_test_preds.npz",
              dates=dates[te].strftime("%Y-%m-%d").to_numpy().astype("U10"), y=inv(Y[te]),
              **{k: inv(v) for k, v in preds.items()})
     shown = table.loc[SHOW_LEADS]

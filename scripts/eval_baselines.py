@@ -43,17 +43,20 @@ def main() -> int:
     p.add_argument("--data", default=None, help="daily parquet (default: data dir)")
     p.add_argument("--split", default="all", help="all | train | val | test (issue-date range from config)")
     p.add_argument("--leads", type=int, nargs="+", default=None)
+    p.add_argument("--tag", default="", help="suffix for the output file")
     args = p.parse_args()
+    tag = f"_{args.tag}" if args.tag else ""
 
     cfg = yaml.safe_load(Path(args.config).read_text())
-    d = load_daily(args.data)
+    data_path = Path(args.data).expanduser() if args.data else default_data_dir() / cfg.get("data_file", "daily_index.parquet")
+    d = load_daily(data_path)
     s = d[cfg["index"]]
     leads = args.leads or list(range(1, cfg["output_days"] + 1))
     split = None if args.split == "all" else tuple(cfg["splits"][args.split])
     train_end = cfg["splits"]["train"][1]
 
     res = evaluate(s, leads, split, train_end, cfg["rotation_days"], cfg["storm_threshold"])
-    out = default_data_dir() / f"baselines_{cfg['index']}_{args.split}.csv"
+    out = default_data_dir() / f"baselines_{cfg['index']}_{args.split}{tag}.csv"
     out.parent.mkdir(parents=True, exist_ok=True)
     res.to_csv(out, index=False)
 
