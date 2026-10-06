@@ -24,6 +24,7 @@ geoindex_daily/
   encoders/surya.py        frozen Surya over SuryaBench (t-60, t) pairs → mean / first / G×G grid embeddings
 scripts/
   build_daily_index.py     DB → $GEOINDEX_DAILY_DATA/daily_index.parquet
+  build_slot_table.py      DB → $GEOINDEX_DAILY_DATA/slot_table.parquet: nearest frame per day × slot (00/06/12/18 UT) × image source
   eval_baselines.py        baseline scores by lead time → CSV
   load_swpc_prf.py         space_weather.swpc_prf_outlook (solaris-data) → local parquet
   eval_swpc.py             score SWPC outlooks vs observed Ap, with references on the same pairs
@@ -56,6 +57,8 @@ export GEOINDEX_DAILY_DATA=~/Projects/GeoIndex/daily   # default; cloud-synced, 
 ```bash
 pytest                                                   # unit tests, offline
 python scripts/build_daily_index.py                      # needs the DB, not the NAS
+python scripts/build_slot_table.py [--check-files]        # image slot table; --check-files needs the NAS
+
 python scripts/eval_baselines.py --config configs/ap.yaml            # all issue dates
 python scripts/eval_baselines.py --config configs/ap.yaml --split test
 ```
