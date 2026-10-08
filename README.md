@@ -25,6 +25,9 @@ geoindex_daily/
 scripts/
   build_daily_index.py     DB → $GEOINDEX_DAILY_DATA/daily_index.parquet
   build_slot_table.py      DB → $GEOINDEX_DAILY_DATA/slot_table.parquet: nearest frame per day × slot (00/06/12/18 UT) × image source
+  build_daily_features.py  daily_index + GOES XRS-B daily mean/max (log10) + OMNI daily solar wind → daily_features.parquet (lead-1 track)
+  lead1_ts.py              lead-1 time-series arms (Ap · +X-ray · +solar wind · all) × ridge / 1-D CNN × L = 1..7, 14, 30; both splits; bootstrap (configs/ap_lead1.yaml)
+
   eval_baselines.py        baseline scores by lead time → CSV
   load_swpc_prf.py         space_weather.swpc_prf_outlook (solaris-data) → local parquet
   eval_swpc.py             score SWPC outlooks vs observed Ap, with references on the same pairs
@@ -58,6 +61,9 @@ export GEOINDEX_DAILY_DATA=~/Projects/GeoIndex/daily   # default; cloud-synced, 
 pytest                                                   # unit tests, offline
 python scripts/build_daily_index.py                      # needs the DB, not the NAS
 python scripts/build_slot_table.py [--check-files]        # image slot table; --check-files needs the NAS
+python scripts/build_daily_features.py                   # lead-1 features; needs the DB
+python scripts/lead1_ts.py --config configs/ap_lead1.yaml # lead-1 time-series arms (l1)
+
 
 python scripts/eval_baselines.py --config configs/ap.yaml            # all issue dates
 python scripts/eval_baselines.py --config configs/ap.yaml --split test

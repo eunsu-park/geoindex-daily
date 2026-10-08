@@ -1,0 +1,61 @@
+# geoindex-daily — daily Ap one day ahead from 1–7 days of history and solar images
+# (the co-authors' track, 2026-10; plan: vault `planning/input-length-plan.md`).
+# This is a separate contract from ap.yaml (30 d → 60 d); nothing here is comparable with it.
+index: ap
+lead: 1                       # target = daily Ap of day t + 1, issued at the end of day t
+input_days: [1, 2, 3, 4, 5, 6, 7, 14, 30]   # time-series arms; 14 and 30 are anchors
+image_input_days: [1, 2, 3, 5, 7]           # image arms; 4 and 6 filled in if the curve is not monotone
+ts_transform: log1p           # on Ap before any model; scores in Ap units after inverting
+storm_threshold: 30
+metrics: [mae, corr]          # decide; log-MAE and storm POD / FAR / CSI reported alongside
+
+# Images (arm D / E): four slots per day, nearest frame within the tolerance (slot_table.parquet).
+slot_hours: [0, 6, 12, 18]    # the two-frame variant is [0, 12]
+slot_tol_min: 180
+image_sources: [lasco_c2, aia193, aia211, hmi_m45]
+
+# Sample rule: the SAME issue days for every arm and every L — days whose 7-day window is
+# complete in all image sources at the slot hours, whose 30-day feature history has no gap
+# (after a 3-day forward fill of the daily features), and whose target exists.
+sample_window_days: 7
+history_days: 30
+ffill_days: 3
+
+# Daily features per arm (columns of daily_features.parquet; see geoindex_daily/features.py).
+features:
+  A: [ap]                                                        # Ap only
+  B: [ap, xray_mean_log, xray_max_log]                           # + GOES XRS-B daily mean / max (log10)
+  C: [ap, sw_v, sw_np, sw_bt, sw_bz_mean, sw_bz_min]             # + OMNI daily solar wind
+  E: [ap, xray_mean_log, xray_max_log, sw_v, sw_np, sw_bt, sw_bz_mean, sw_bz_min]
+
+# Splits by issue date. A = the vault contract (test at the cycle-25 maximum);
+# B = one year per cycle phase, the sensitivity split.
+splits:
+  A:
+    train: ["2010-09-01", "2019-12-31"]
+    val:   ["2020-01-01", "2021-12-31"]
+    test:  ["2022-01-01", "2025-12-31"]
+  B:
+    test_years: [2013, 2017, 2021, 2024]
+    val_years:  [2012, 2016, 2020, 2023]
+    # train = every other year in the period
+
+period: ["2010-09-01", "2025-12-31"]
+seeds: [0, 1, 2]
+bootstrap: {n: 1000, block: month, seed: 0}
+
+data_file: daily_features.parquet
+slot_file: slot_table.parquet
+out_dir: lead1
+
+ridge:
+  alphas: [0.01, 0.1, 1, 10, 100, 1000]
+ts_cnn:
+  width: 32
+  kernel: 3
+  dropout: 0.1
+  lr: 0.001
+  weight_decay: 0.0001
+  batch_size: 128
+  max_epochs: 200
+  patience: 15
