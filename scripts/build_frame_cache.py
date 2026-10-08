@@ -151,7 +151,7 @@ def cmd_build(args, data_dir):
     t = slots_frame(data_dir, args.start, args.end)
     if args.sources:
         t = t[t.source.isin(args.sources)]
-    rows = list(zip(t.source, t.slot_time, t.file_path, t.prev_path.where(t.prev_path.notna(), None)))
+    rows = [(a, b, c, (None if pd.isna(d) else d)) for a, b, c, d in zip(t.source, t.slot_time, t.file_path, t.prev_path)]
     print(f"{len(rows)} slot frames, archive {root}, cache {cache_dir}, {args.workers} workers, calib {calib}")
     t0, done, log = time.time(), 0, []
     with Pool(args.workers, initializer=_init, initargs=(root, cache_dir, calib)) as pool:

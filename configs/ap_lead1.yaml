@@ -59,3 +59,13 @@ ts_cnn:
   batch_size: 128
   max_epochs: 200
   patience: 15
+image_model:                  # arms D / E / I (scripts/lead1_image.py); see the plan §5
+  channels: [aia193, aia211, hmi_m45, lasco_c2]   # lasco_c2_rd (running difference) is the alternative fourth channel
+  widths: [32, 64, 128, 256]  # (2+1)D stages after the stride-4 stem
+  hidden: 128
+  dropout: 0.2
+  lr: 0.0003
+  weight_decay: 0.0001
+  batch_size: 8
+  max_epochs: 40
+  patience: 8
