@@ -13,11 +13,16 @@ l2_log_<split>_<arm>_L<L>_s<seed>.csv (per-epoch), checkpoints under lead1/ckpt/
 """
 import argparse
 import csv
+import os
 import sys
 import time
 from pathlib import Path
 
-import numpy as np
+# numpy's transparent-hugepage madvise on the large frame arrays drives the kernel into compaction
+# stalls in the loader workers (3-19x slower frame loading on egghouse-gpu); must be set before numpy loads.
+os.environ.setdefault("NUMPY_MADVISE_HUGEPAGE", "0")
+
+import numpy as np  # noqa: E402
 import pandas as pd
 import torch
 import yaml
