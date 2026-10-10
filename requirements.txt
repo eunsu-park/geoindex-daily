@@ -12,3 +12,8 @@ transformers
 huggingface-hub
 h5netcdf
 netCDF4
+matplotlib
+astropy
+peft
+markdown
+# optional: playwright (PDF fallback when no Edge/Chrome; then `python -m playwright install chromium`)
