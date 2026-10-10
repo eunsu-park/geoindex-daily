@@ -1,6 +1,7 @@
 """Lead-1 image arms (l2): (2+1)D image branch + time-series branch over L days of frames.
 
-Arms: D = images + Ap · E = images + all eight daily features · I = images only. The issue
+Arms: D = images + Ap · B = images + Ap + X-ray (the co-authors' input set) · E = images + all eight
+daily features · I = images only. The issue
 days, splits, target transform and references are exactly those of `lead1_ts.py` (same
 config), so every score is paired with the l1 forecasts saved in `l1_preds_<split>.npz`.
 
@@ -35,7 +36,7 @@ from geoindex_daily.models.image_fusion import ImageFusion  # noqa: E402
 from geoindex_daily.models.ts_cnn import default_device  # noqa: E402
 from geoindex_daily.slots import load_slot_table  # noqa: E402
 
-ARM_FEATURES = {"D": "A", "E": "E", "I": None}   # which feature list of the config feeds the TS branch
+ARM_FEATURES = {"D": "A", "B": "B", "E": "E", "I": None}   # which feature list of the config feeds the TS branch
 
 
 def main() -> int:
@@ -176,7 +177,7 @@ def main() -> int:
                 rdates = pd.DatetimeIndex(ref["dates"])
                 pos = rdates.get_indexer(dte)
                 assert (pos >= 0).all(), "test days not in l1_preds"
-                for name, key in (("vs_A_cnn_sameL", f"A_cnn_L{L}"), ("vs_E_cnn_sameL", f"E_cnn_L{L}"),
+                for name, key in (("vs_A_cnn_sameL", f"A_cnn_L{L}"), ("vs_B_cnn_sameL", f"B_cnn_L{L}"), ("vs_E_cnn_sameL", f"E_cnn_L{L}"),
                                   ("vs_E_cnn_L2", "E_cnn_L2"), ("vs_persistence", "persistence")):
                     if key in ref:
                         r = block_bootstrap_diff(y_all[te], pt, ref[key][pos], dte, cfg["bootstrap"]["n"], cfg["bootstrap"]["seed"])

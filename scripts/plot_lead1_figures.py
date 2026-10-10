@@ -28,9 +28,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geoindex_daily.daily_index import default_data_dir  # noqa: E402
 
 VAULT_FIG = Path.home() / "Vaults/Research/GeoIndex/experiments/figures"
-LENGTHS = [1, 2, 3, 5, 7]
+LENGTHS = [1, 2, 3, 4, 5, 6, 7]
 # (image arm, no-image l1 key prefix, label, colour)
-PAIRS = [("D", "A_cnn", "Ap", "#1f77b4"), ("E", "E_cnn", "Ap + X-ray + wind", "#d62728")]
+PAIRS = [("D", "A_cnn", "Ap", "#1f77b4"), ("B", "B_cnn", "Ap + X-ray", "#2ca02c"),
+         ("E", "E_cnn", "Ap + X-ray + wind", "#d62728")]
 
 
 def seed_mean(d: Path, split: str, arm: str, L: int):
@@ -76,7 +77,7 @@ def image_effect(d: Path, out: Path):
             s = bt[(bt.arm == arm) & (bt.split == sp)].sort_values("L")
             if s.empty:
                 continue
-            x = np.array([LENGTHS.index(L) for L in s.L]) + k * 0.3 - 0.15 + (dx if sp == "B" else 0)
+            x = np.array([LENGTHS.index(L) for L in s.L]) + (k - 1) * 0.25 + (dx if sp == "B" else 0)
             for ax, v, lo, hi in [(axes[0], "d_mae", "d_mae_lo", "d_mae_hi"),
                                   (axes[1], "d_corr", "d_corr_lo", "d_corr_hi")]:
                 ax.errorbar(x, s[v], yerr=[s[v] - s[lo], s[hi] - s[v]], fmt=mk, color=c, capsize=3,

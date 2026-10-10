@@ -1,10 +1,11 @@
 """Summarise the l2 image arms against their no-image l1 counterparts (seed-mean forecasts).
 
-For every split and image arm (D: Ap + images · E: all + images) and input length L, averages
+For every split and image arm (D: Ap + images · B: Ap + X-ray + images · E: all + images) and input length L, averages
 the three seed forecasts in l2_preds_<split>_<arm>_L<L>_s<seed>.npz, scores them, and runs the
 monthly block bootstrap of
   * image arm vs its no-image l1 CNN at the same L (D vs A_cnn, E vs E_cnn) — the image effect;
-  * image arm at L vs the same arm at L = 1 — the length curve;
+  * image arm at L vs the same arm at L = 1, and vs its neighbour L − 1 — the length curve and the
+    plan's decision rule (a best L must beat both neighbours with the interval excluding zero);
   * image arm vs persistence.
 The l1 forecasts are taken on the l2 test days (a subset of the l1 days).
 
@@ -26,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geoindex_daily.daily_index import default_data_dir  # noqa: E402
 from geoindex_daily.lead1 import block_bootstrap_diff, score_lead1  # noqa: E402
 
-NO_IMAGE = {"D": "A", "E": "E"}   # image arm → l1 arm with the same non-image inputs
+NO_IMAGE = {"D": "A", "B": "B", "E": "E"}   # image arm → l1 arm with the same non-image inputs
 
 
 def main() -> int:
@@ -71,11 +72,13 @@ def main() -> int:
                 boots.append({"split": sp, "arm": arm, "L": L, "comparison": comp,
                               **block_bootstrap_diff(y, pm, ref, dates, n_boot, bseed)})
         for (arm, L), (dates, y, pm) in ens.items():
-            if L != 1 and (arm, 1) in ens:
-                d1, _, p1 = ens[(arm, 1)]
-                assert (d1 == dates).all()
-                boots.append({"split": sp, "arm": arm, "L": L, "comparison": "vs L1",
-                              **block_bootstrap_diff(y, pm, p1, dates, n_boot, bseed)})
+            refs = [("vs L1", 1)] + ([("vs L-1", L - 1)] if L - 1 > 1 else [])
+            for comp, L0 in refs:
+                if L != L0 and (arm, L0) in ens:
+                    d0, _, p0 = ens[(arm, L0)]
+                    assert (d0 == dates).all()
+                    boots.append({"split": sp, "arm": arm, "L": L, "comparison": comp,
+                                  **block_bootstrap_diff(y, pm, p0, dates, n_boot, bseed)})
 
     sc, bt = pd.DataFrame(scores), pd.DataFrame(boots)
     sc.to_csv(out / f"{args.tag}_summary_scores.csv", index=False)
