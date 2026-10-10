@@ -65,7 +65,10 @@ def to_html(md_text: str, title: str) -> str:
 
 
 def print_pdf(html_path: Path, pdf_path: Path) -> None:
-    browser = next((b for b in BROWSERS if Path(b).exists()), None)
+    # fallback: Playwright's Chromium (`python -m playwright install chromium`) on hosts without a browser
+    playwright = sorted(Path.home().glob("Library/Caches/ms-playwright/chromium-*/chrome-mac*/"
+                                         "Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"))
+    browser = next((b for b in BROWSERS + [str(p) for p in playwright[::-1]] if Path(b).exists()), None)
     if browser is None:
         raise SystemExit("no Edge/Chrome/Chromium found for PDF printing")
     subprocess.run([browser, "--headless=new", "--disable-gpu", "--no-pdf-header-footer",
