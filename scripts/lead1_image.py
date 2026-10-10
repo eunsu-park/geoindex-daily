@@ -23,10 +23,10 @@ from pathlib import Path
 os.environ.setdefault("NUMPY_MADVISE_HUGEPAGE", "0")
 
 import numpy as np  # noqa: E402
-import pandas as pd
-import torch
-import yaml
-from torch.utils.data import DataLoader
+import pandas as pd  # noqa: E402
+import torch  # noqa: E402
+import yaml  # noqa: E402
+from torch.utils.data import DataLoader  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
