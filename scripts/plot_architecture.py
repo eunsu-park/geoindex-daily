@@ -20,7 +20,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 
-VAULT_FIG = Path.home() / "Vaults/Research/GeoIndex/experiments/figures"
+VAULT_FIG = Path.home() / "Vaults/GeoIndex/experiments/figures"
 
 C_IMG = "#d9e8f5"     # image branch
 C_TS = "#dff0d8"      # time-series branch

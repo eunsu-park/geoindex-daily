@@ -27,7 +27,7 @@ from matplotlib.patches import FancyBboxPatch  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geoindex_daily.daily_index import default_data_dir  # noqa: E402
 
-VAULT_FIG = Path.home() / "Vaults/Research/GeoIndex/experiments/figures"
+VAULT_FIG = Path.home() / "Vaults/GeoIndex/experiments/figures"
 LENGTHS = [1, 2, 3, 4, 5, 6, 7]
 # (image arm, no-image l1 key prefix, label, colour)
 PAIRS = [("D", "A_cnn", "Ap", "#1f77b4"), ("B", "B_cnn", "Ap + X-ray", "#2ca02c"),

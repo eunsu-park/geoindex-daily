@@ -21,7 +21,7 @@ import pandas as pd  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geoindex_daily.daily_index import default_data_dir, load_daily  # noqa: E402
 
-VAULT_FIG = Path.home() / "Vaults/Research/GeoIndex/experiments/figures"
+VAULT_FIG = Path.home() / "Vaults/GeoIndex/experiments/figures"
 ARMS = {  # key in npz -> (label, colour, linestyle)
     "TS": ("Ridge, 30-day Ap", "tab:red", "--"),
     "PHASE": ("Ridge + F10.7/SN", "tab:purple", "--"),

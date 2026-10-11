@@ -6,7 +6,7 @@ markdown to HTML with tables, and prints the HTML to PDF with the headless Edge/
 found on the machine, or Playwright's Chromium (`python -m playwright install chromium`)
 when none is installed. Korean text uses Apple SD Gothic Neo.
 
-    python scripts/render_report_pdf.py ~/Vaults/Research/GeoIndex/planning/weekly-reports/2026-W36.md
+    python scripts/render_report_pdf.py ~/Vaults/GeoIndex/planning/weekly-reports/2026-W36.md
     python scripts/render_report_pdf.py <a.md> <b.md> ...        # one PDF per file, same folder
 """
 import argparse

@@ -12,7 +12,7 @@ forecast.
 A second track (lead 1, `configs/ap_lead1.yaml`) forecasts daily Ap **one day ahead** from
 1–7 days of Ap, GOES X-ray and OMNI solar wind (`l1`), and adds AIA 193 / AIA 211 / HMI /
 LASCO C2 frames at four slots per day through a (2+1)D 3D CNN (`l2`). Results live in the
-Research vault, not here.
+GeoIndex vault (`~/Vaults/GeoIndex`), not here.
 
 ## Layout
 
