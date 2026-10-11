@@ -4,7 +4,8 @@ For every split and image arm (D: Ap + images · B: Ap + X-ray + images · E: al
 the three seed forecasts in l2_preds_<split>_<arm>_L<L>_s<seed>.npz, scores them, and runs the
 monthly block bootstrap of
   * image arm vs its no-image l1 CNN at the same L (D vs A_cnn, E vs E_cnn) — the image effect;
-  * image arm at L vs the same arm at L = 1, and vs its neighbour L − 1 — the length curve and the
+  * image arm at L vs the same arm at L = 1, and vs its nearest shorter run (L − 1 when all
+    lengths ran) — the length curve and the
     plan's decision rule (a best L must beat both neighbours with the interval excluding zero);
   * image arm vs persistence.
 The l1 forecasts are taken on the l2 test days (a subset of the l1 days).
@@ -72,13 +73,15 @@ def main() -> int:
                 boots.append({"split": sp, "arm": arm, "L": L, "comparison": comp,
                               **block_bootstrap_diff(y, pm, ref, dates, n_boot, bseed)})
         for (arm, L), (dates, y, pm) in ens.items():
-            refs = [("vs L1", 1)] + ([("vs L-1", L - 1)] if L - 1 > 1 else [])
+            lower = [L0 for (a0, L0) in ens if a0 == arm and L0 < L]     # nearest shorter length run
+            refs = [("vs L1", 1)] + ([("vs L-1", max(lower))] if lower and max(lower) > 1 else [])
             for comp, L0 in refs:
                 if L != L0 and (arm, L0) in ens:
                     d0, _, p0 = ens[(arm, L0)]
-                    assert (d0 == dates).all()
-                    boots.append({"split": sp, "arm": arm, "L": L, "comparison": comp,
-                                  **block_bootstrap_diff(y, pm, p0, dates, n_boot, bseed)})
+                    common = dates.intersection(d0)   # a longer window can lose days missing from the frame cache
+                    i, i0 = dates.get_indexer(common), d0.get_indexer(common)
+                    boots.append({"split": sp, "arm": arm, "L": L, "comparison": comp, "n_common": len(common),
+                                  **block_bootstrap_diff(y[i], pm[i], p0[i0], common, n_boot, bseed)})
 
     sc, bt = pd.DataFrame(scores), pd.DataFrame(boots)
     sc.to_csv(out / f"{args.tag}_summary_scores.csv", index=False)

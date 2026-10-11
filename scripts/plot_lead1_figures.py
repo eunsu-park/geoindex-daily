@@ -4,10 +4,10 @@ Reads the saved forecasts in $GEOINDEX_DAILY_DATA/lead1/ (l1_preds_<split>.npz,
 l2_preds_<split>_<arm>_L<L>_s<seed>.npz, l2_summary_bootstrap.csv) and writes PNGs to --out
 (default: the vault's experiments/figures):
 
-* ``lead1_length_curve.png`` — MAE and CC against input length L, split A, the two image arms
+* ``lead1_length_curve.png`` — MAE and CC against input length L, split A, the three image arms
   next to their no-image l1 twins, persistence as a line.
 * ``lead1_image_effect.png`` — image arm − no-image arm at each L, 95 % bootstrap interval.
-* ``lead1_case_<YYYYMMDD>.png`` — observed daily Ap and the L = 2 forecasts over a test window.
+* ``lead1_case_<YYYYMMDD>.png`` — observed daily Ap and arm B's L = 4 forecasts (with / without images) over a test window.
 * ``arch_lead1_fusion.png`` — the l2 model, boxes and arrows.
 
     python scripts/plot_lead1_figures.py
@@ -93,22 +93,25 @@ def image_effect(d: Path, out: Path):
     fig.savefig(out / "lead1_image_effect.png", dpi=150); plt.close(fig)
 
 
+CASE_ARM, CASE_L = "B", 4     # the co-authors' input set at its split-A best length
+
+
 def case(d: Path, out: Path, start: str, end: str):
     split = "A" if pd.Timestamp(start).year >= 2022 else "B"
     l1 = np.load(d / f"l1_preds_{split}.npz", allow_pickle=True)
-    dates, y, pe = seed_mean(d, split, "E", 2)
-    r = l1["E_cnn_L2"][pd.DatetimeIndex(l1["dates"]).get_indexer(dates)]
+    dates, y, pe = seed_mean(d, split, CASE_ARM, CASE_L)
+    r = l1[f"{CASE_ARM}_cnn_L{CASE_L}"][pd.DatetimeIndex(l1["dates"]).get_indexer(dates)]
     pers = l1["persistence"][pd.DatetimeIndex(l1["dates"]).get_indexer(dates)]
     tgt = dates + pd.Timedelta(days=1)          # forecasts are issued on day t for day t + 1
     m = (tgt >= start) & (tgt <= end)
     fig, ax = plt.subplots(figsize=(10, 3.4))
     ax.plot(tgt[m], y[m], "-o", color="green", ms=3, label="observed daily Ap")
-    ax.plot(tgt[m], pe[m], "--x", color="red", ms=4, label="E + images, L = 2")
-    ax.plot(tgt[m], r[m], "-.", color="#1f77b4", label="E, no images, L = 2")
+    ax.plot(tgt[m], pe[m], "--x", color="red", ms=4, label=f"{CASE_ARM} + images, L = {CASE_L}")
+    ax.plot(tgt[m], r[m], "-.", color="#1f77b4", label=f"{CASE_ARM}, no images, L = {CASE_L}")
     ax.plot(tgt[m], pers[m], ":", color="grey", label="persistence")
     ax.axhline(30, color="k", lw=0.6, alpha=0.5)
     txt = "\n".join(f"{n}: MAE {np.abs(y[m] - p[m]).mean():.2f}"
-                    for n, p in [("E + images", pe), ("E, no images", r), ("persistence", pers)])
+                    for n, p in [(f"{CASE_ARM} + images", pe), (f"{CASE_ARM}, no images", r), ("persistence", pers)])
     ax.text(0.01, 0.97, txt, transform=ax.transAxes, va="top", fontsize=8,
             bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.6))
     ax.set_ylabel("daily Ap"); ax.set_yscale("symlog", linthresh=30); ax.grid(alpha=0.3)
@@ -132,7 +135,7 @@ def architecture(out: Path):
     box(2.4, 2.5, 1.3, 1.0, "stem\nConv3d 1×4×4\nstride 4 → 256²", "#f3f3f3")
     box(4.1, 2.5, 1.9, 1.0, "4 × (2+1)D block\n3×3 spatial + 3 temporal\n32→64→128→256, /2 each", "#f3f3f3")
     box(6.4, 2.5, 1.0, 1.0, "pool\n(T, H, W)\n→ 256", "#f3f3f3")
-    box(0.1, 0.4, 1.9, 1.2, "daily features × L\nD: Ap\nE: Ap, X-ray (2),\nwind (5)", "#d9e8f5")
+    box(0.1, 0.4, 1.9, 1.2, "daily features × L\nD: Ap · B: Ap, X-ray (2)\nE: Ap, X-ray (2),\nwind (5)", "#d9e8f5")
     box(2.4, 0.5, 3.6, 1.0, "1-D CNN (the l1 model)\n2 × Conv1d k = 3, 32 ch, GELU, pool → 32", "#f3f3f3")
     box(7.8, 1.5, 1.0, 1.0, "concat 288\nMLP 128\n→ 1", "#e2f0d9")
     box(9.0, 1.6, 0.9, 0.8, "log1p Ap\nday t + 1", "#e2f0d9")
