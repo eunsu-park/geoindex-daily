@@ -43,7 +43,7 @@ scripts/
   build_daily_features.py  daily_index + GOES XRS-B daily mean/max (log10) + OMNI daily solar wind → daily_features.parquet (lead-1 track)
   lead1_ts.py              lead-1 time-series arms (Ap · +X-ray · +solar wind · all) × ridge / 1-D CNN × L = 1..7, 14, 30; both splits; bootstrap (configs/ap_lead1.yaml)
   build_frame_cache.py     slot table → uint8 1024² frame cache per slot and channel (prev / calibrate / build / index); NAS needed
-  lead1_image.py           lead-1 image arms (D: images + Ap · E: images + all · I: images only): (2+1)D branch + 1-D CNN branch, paired with l1
+  lead1_image.py           lead-1 image arms (D: images + Ap · B: images + Ap + X-ray · E: images + all · I: images only): (2+1)D branch + 1-D CNN branch, paired with l1
   lead1_l2_summary.py      l2 seed-mean forecasts vs their no-image l1 twins, the L = 1 curve and persistence; bootstrap → lead1/l2_summary_*.csv
   plot_lead1_figures.py    lead-1 report figures: length curve, image effect, case windows, arch_lead1_fusion.png
   eval_baselines.py        baseline scores by lead time → CSV
