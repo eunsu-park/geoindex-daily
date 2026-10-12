@@ -75,7 +75,9 @@ channel ablation.
 ```bash
 conda activate geoindex-daily      # requirements.txt: torch, momentfm, transformers, requests, pypdf, ...
 source ~/.solaris_env              # SOLARIS_DB_HOST/PORT/USER/PASSWORD for this device
-export GEOINDEX_DAILY_DATA=~/Projects/GeoIndex/daily   # default; local, not the NAS
+export GEOINDEX_DAILY_DATA=~/Projects/GeoIndex/daily   # default (NAS share); heavy caches such as
+                                                        # Surya tokens / LoRA runs use the local
+                                                        # ~/Data/GeoIndex/daily (see scripts/lora_queue.sh)
 ```
 
 ## Commands
