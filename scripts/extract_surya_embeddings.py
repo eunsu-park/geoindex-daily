@@ -7,10 +7,10 @@ forward in 1-h steps up to `--max-shift` hours (the bucket has ~1 % gaps). Outpu
 `effective_time`. Resume-safe: existing files are skipped. Progress goes to `<out>/progress.log`.
 
     python scripts/extract_surya_embeddings.py --start 2011-01-01 --end 2011-01-10 \
-        --archive /Volumes/archive2/solar_images/suryabench --limit 3          # smoke
-    python scripts/extract_surya_embeddings.py --start 2010-05-13 --end 2024-12-31   # full, on the server
+        --archive <archive>/solar_images/suryabench --limit 3          # smoke
+    python scripts/extract_surya_embeddings.py --start 2010-05-13 --end 2024-12-31   # full
 
-Reads over NFS/SMB dominate on a laptop (2 × 590 MB per anchor); the pair is prefetched
+Reads over NFS/SMB can dominate (2 × 590 MB per anchor); the pair is prefetched
 in a thread while the previous pair runs through the model.
 """
 import argparse

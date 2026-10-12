@@ -57,7 +57,7 @@ scripts/
   extract_surya_embeddings.py  daily Surya embeddings from the archive tree → one npz per day
   fusion.py                stage-1 fusion: ridge on Ap history + PCA-reduced Surya token, with controls + bootstrap
   fusion_mlp.py            stage-2 fusion: small MLP heads, 3 seeds
-  cache_surya_tokens.py    Surya token cache for LoRA training (GPU host)
+  cache_surya_tokens.py    Surya token cache for LoRA training (CUDA)
   lora_train.py            Surya + LoRA (peft) fine-tuning with the grid head; lora_queue.sh runs the queue
   swpc_vs_null_models.py   SWPC's 27-day outlook decomposed against null models (selection vs damping)
   plot_architecture.py     architecture diagrams for the reports
@@ -67,15 +67,15 @@ tests/                     pytest; no DB or NAS needed
 ```
 
 Planned: a cycle-phase-balanced split for the 60-day track, a physics-shaped image probe
-(coronal-hole area), a regularised 8×8 grid representation, MOMENT-large on the GPU host, the
+(coronal-hole area), a regularised 8×8 grid representation, MOMENT-large, the
 channel ablation.
 
 ## Setup
 
 ```bash
 conda activate geoindex-daily      # requirements.txt: torch, momentfm, transformers, requests, pypdf, ...
-source ~/.solaris_env              # SOLARIS_DB_HOST/PORT/USER/PASSWORD (localhost on the on-site Mac)
-export GEOINDEX_DAILY_DATA=~/Projects/GeoIndex/daily   # default; cloud-synced, not the NAS
+source ~/.solaris_env              # SOLARIS_DB_HOST/PORT/USER/PASSWORD for this device
+export GEOINDEX_DAILY_DATA=~/Projects/GeoIndex/daily   # default; local, not the NAS
 ```
 
 ## Commands
@@ -86,8 +86,8 @@ python scripts/build_daily_index.py                      # needs the DB, not the
 python scripts/build_slot_table.py [--check-files]        # image slot table; --check-files needs the NAS
 python scripts/build_daily_features.py                   # lead-1 features; needs the DB
 python scripts/lead1_ts.py --config configs/ap_lead1.yaml # lead-1 time-series arms (l1)
-python scripts/build_frame_cache.py prev|calibrate|build|index   # frame cache (NAS; build runs on egghouse-gpu)
-python scripts/lead1_image.py --arm E --lengths 1 2 3 5 7      # lead-1 image arms (l2), CUDA host
+python scripts/build_frame_cache.py prev|calibrate|build|index   # frame cache (needs the archive)
+python scripts/lead1_image.py --arm E --lengths 1 2 3 5 7      # lead-1 image arms (l2), CUDA
 python scripts/lead1_l2_summary.py                       # l2 summary + bootstrap (after the sweep)
 python scripts/plot_lead1_figures.py [--cases A:B ...]   # lead-1 report figures → vault experiments/figures
 python scripts/render_report_pdf.py <report.md> ...      # PDF next to each vault report
@@ -105,7 +105,7 @@ python scripts/eval_baselines.py --config configs/ap.yaml --split test
   00 UT plus its (t−60 min) partner, because Surya's pretrained input is the pair.
 - Lead-1 images: our own level-1 AIA / HMI archive and LASCO C2 (SuryaBench ends 2024), four
   slots per day (00/06/12/18 UT, `slot_table.parquet`), cached as uint8 1024² frames
-  (`frames1024/`, ≈ 109 GB on the GPU host).
+  (`frames1024/`, ≈ 109 GB).
 
 ## What the baselines say (2011–2025, all issue dates)
 

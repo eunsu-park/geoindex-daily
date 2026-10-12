@@ -2,10 +2,9 @@
 
 Reads `slot_table.parquet`, writes one `.npy` per slot and channel under
 `$GEOINDEX_DAILY_DATA/frames1024/<source>/<YYYY>/<YYYYMMDD_HH>.npy`, plus `calibration.json`
-and `index.parquet`. Needs the archive (SOLARIS_ARCHIVE_ROOT) — on egghouse-gpu
-`~/NAS/archive`, on the laptop `~/Archive`.
+and `index.parquet`. Needs the archive (SOLARIS_ARCHIVE_ROOT, from `~/.solaris_env`).
 
-    # once, on a host with the database: the previous C2 frame of every slot (running difference)
+    # once, with DB access: the previous C2 frame of every slot (running difference)
     python scripts/build_frame_cache.py prev
     # calibration constants from sample frames (training years), then the cache
     python scripts/build_frame_cache.py calibrate --n 40

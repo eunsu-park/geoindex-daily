@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Run the i3 LoRA experiment queue on the GPU server once the token cache has finished.
-# Usage (on egghouse-gpu):  setsid nohup bash scripts/lora_queue.sh > ~/Data/GeoIndex/daily/lora/queue.log 2>&1 &
+# Run the i3 LoRA experiment queue once the token cache has finished.
+# Usage:  setsid nohup bash scripts/lora_queue.sh > ~/Data/GeoIndex/daily/lora/queue.log 2>&1 &
 set -u
 cd "$(dirname "$0")/.."
 export GEOINDEX_DAILY_DATA=${GEOINDEX_DAILY_DATA:-$HOME/Data/GeoIndex/daily}

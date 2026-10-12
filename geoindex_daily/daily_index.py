@@ -23,7 +23,7 @@ DAILY_COLUMNS = ["ap", "kp", "f107", "sn", "dst", "n_ap_hours"]
 
 
 def default_data_dir() -> Path:
-    """Canonical local store for derived tables (cloud-synced, not on the NAS)."""
+    """Canonical local store for derived tables (local, not on the NAS)."""
     import os
     return Path(os.environ.get("GEOINDEX_DAILY_DATA",
                                Path.home() / "Projects" / "GeoIndex" / "daily"))

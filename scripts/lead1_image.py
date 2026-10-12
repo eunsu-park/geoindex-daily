@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 
 # numpy's transparent-hugepage madvise on the large frame arrays drives the kernel into compaction
-# stalls in the loader workers (3-19x slower frame loading on egghouse-gpu); must be set before numpy loads.
+# stalls in the loader workers (3-19x slower frame loading observed); must be set before numpy loads.
 os.environ.setdefault("NUMPY_MADVISE_HUGEPAGE", "0")
 
 import numpy as np  # noqa: E402
