@@ -10,6 +10,9 @@ and `index.parquet`. Needs the archive (SOLARIS_ARCHIVE_ROOT, from `~/.solaris_e
     python scripts/build_frame_cache.py calibrate --n 40
     python scripts/build_frame_cache.py build --workers 6 [--start 2010-09-01 --end 2025-12-31]
     python scripts/build_frame_cache.py index          # rebuild index.parquet from what is on disk
+    # W42: running difference only, at the twelve 2-hour LASCO slots (existing files are kept)
+    python scripts/build_frame_cache.py prev --table slot_table_lasco12.parquet --prev-file lasco_c2_prev12.parquet
+    python scripts/build_frame_cache.py build --table slot_table_lasco12.parquet --prev-file lasco_c2_prev12.parquet --rd-only
 """
 import argparse
 import os
@@ -33,15 +36,16 @@ from geoindex_daily.slots import default_archive_root, load_slot_table  # noqa: 
 SLOT_SOURCES = ("aia193", "aia211", "hmi_m45", "lasco_c2")
 
 
-def slots_frame(data_dir: Path, start=None, end=None) -> pd.DataFrame:
-    t = load_slot_table(data_dir / "slot_table.parquet")
+def slots_frame(data_dir: Path, start=None, end=None, table="slot_table.parquet",
+                prev_file="lasco_c2_prev.parquet") -> pd.DataFrame:
+    t = load_slot_table(data_dir / table)
     t = t[t.source.isin(SLOT_SOURCES) & t.file_path.notna()]
     if start:
         t = t[t.date >= pd.Timestamp(start)]
     if end:
         t = t[t.date <= pd.Timestamp(end)]
     t = t.assign(slot_time=t.date + pd.to_timedelta(t.slot_hour, unit="h"))
-    prev = data_dir / "lasco_c2_prev.parquet"
+    prev = data_dir / prev_file
     if prev.exists():
         pv = pd.read_parquet(prev)[["slot_time", "prev_path"]]
         t = t.merge(pv, on="slot_time", how="left")
@@ -53,7 +57,7 @@ def slots_frame(data_dir: Path, start=None, end=None) -> pd.DataFrame:
 def cmd_prev(args, data_dir):
     """The C2 Orange frame 6–30 min before each slot's frame, from the catalog (needs the DB)."""
     from geoindex_daily.db import connect
-    t = load_slot_table(data_dir / "slot_table.parquet")
+    t = load_slot_table(data_dir / args.table)
     t = t[(t.source == "lasco_c2") & t.file_path.notna()]
     with connect("solar_images") as conn:
         cur = conn.cursor()
@@ -70,8 +74,8 @@ def cmd_prev(args, data_dir):
         rows.append({"slot_time": st, "prev_path": cat.file_path.iloc[j] if ok else None,
                      "prev_datetime": cat.datetime.iloc[j] if ok else pd.NaT})
     out = pd.DataFrame(rows)
-    out.to_parquet(data_dir / "lasco_c2_prev.parquet", index=False)
-    print(f"wrote lasco_c2_prev.parquet: {len(out)} slots, {out.prev_path.notna().sum()} with a previous frame")
+    out.to_parquet(data_dir / args.prev_file, index=False)
+    print(f"wrote {args.prev_file}: {len(out)} slots, {out.prev_path.notna().sum()} with a previous frame")
     return 0
 
 
@@ -101,8 +105,8 @@ def cmd_calibrate(args, data_dir):
 _G = {}
 
 
-def _init(root, cache_dir, calib):
-    _G.update(root=Path(root), cache_dir=Path(cache_dir), calib=calib)
+def _init(root, cache_dir, calib, rd_only=False):
+    _G.update(root=Path(root), cache_dir=Path(cache_dir), calib=calib, rd_only=rd_only)
 
 
 def _one(row):
@@ -112,20 +116,24 @@ def _one(row):
     out = cache_path(cache_dir, src, st)
     res = []
     try:
-        todo = [src] + (["lasco_c2_rd"] if src == "lasco_c2" else [])
+        rd_only = _G["rd_only"] and src == "lasco_c2"
+        todo = ([] if rd_only else [src]) + (["lasco_c2_rd"] if src == "lasco_c2" else [])
         outs = {s: cache_path(cache_dir, s, st) for s in todo}
         if all(p.exists() for p in outs.values()):
             return [(s, st, str(p), "exists") for s, p in outs.items()]
         d, h = load_frame(root / fp)
-        if src in ("aia193", "aia211"):
+        if rd_only:
+            pass
+        elif src in ("aia193", "aia211"):
             arr = preprocess_aia(d, h["EXPTIME"], calib[src]["hi"])
         elif src == "hmi_m45":
             arr = preprocess_hmi(d, h["CROTA2"] or 0.0, calib["hmi_m45"]["bmax"])
         else:
             arr = preprocess_lasco(d, h["EXPTIME"], calib["lasco_c2"]["hi"])
-        out.parent.mkdir(parents=True, exist_ok=True)
-        np.save(out, arr)
-        res.append((src, st, str(out), "ok"))
+        if not rd_only:
+            out.parent.mkdir(parents=True, exist_ok=True)
+            np.save(out, arr)
+            res.append((src, st, str(out), "ok"))
         if src == "lasco_c2":
             o2 = outs["lasco_c2_rd"]
             if prev:
@@ -147,13 +155,13 @@ def cmd_build(args, data_dir):
     root = default_archive_root()
     cache_dir = data_dir / "frames1024"
     calib = load_calibration(cache_dir)
-    t = slots_frame(data_dir, args.start, args.end)
+    t = slots_frame(data_dir, args.start, args.end, args.table, args.prev_file)
     if args.sources:
         t = t[t.source.isin(args.sources)]
     rows = [(a, b, c, (None if pd.isna(d) else d)) for a, b, c, d in zip(t.source, t.slot_time, t.file_path, t.prev_path)]
     print(f"{len(rows)} slot frames, archive {root}, cache {cache_dir}, {args.workers} workers, calib {calib}")
     t0, done, log = time.time(), 0, []
-    with Pool(args.workers, initializer=_init, initargs=(root, cache_dir, calib)) as pool:
+    with Pool(args.workers, initializer=_init, initargs=(root, cache_dir, calib, args.rd_only)) as pool:
         for res in pool.imap_unordered(_one, rows, chunksize=4):
             log.extend(res)
             done += 1
@@ -163,7 +171,7 @@ def cmd_build(args, data_dir):
                 print(f"  {done}/{len(rows)} slots, {rate:.1f}/s, eta {(len(rows) - done) / max(rate, 1e-6) / 60:.0f} min, "
                       f"{bad} errors", flush=True)
     idx = pd.DataFrame(log, columns=["source", "slot_time", "path", "status"])
-    idx.to_parquet(cache_dir / "build_log.parquet", index=False)
+    idx.to_parquet(cache_dir / ("build_log_rd.parquet" if args.rd_only else "build_log.parquet"), index=False)
     print(idx.status.str.split(":").str[0].value_counts().to_string())
     return cmd_index(args, data_dir)
 
@@ -189,6 +197,9 @@ def main() -> int:
     p.add_argument("--start", default=None)
     p.add_argument("--end", default=None)
     p.add_argument("--sources", nargs="*", default=None, help="build: subset of the slot sources")
+    p.add_argument("--table", default="slot_table.parquet", help="prev / build: slot table in the data dir")
+    p.add_argument("--prev-file", default="lasco_c2_prev.parquet", help="prev / build: previous-C2-frame table")
+    p.add_argument("--rd-only", action="store_true", help="build: LASCO running difference only, no raw C2 frame")
     args = p.parse_args()
     data_dir = default_data_dir()
     return {"prev": cmd_prev, "calibrate": cmd_calibrate, "build": cmd_build, "index": cmd_index}[args.command](args, data_dir)

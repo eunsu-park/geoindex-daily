@@ -78,6 +78,18 @@ def nearest_frames(catalog: pd.DataFrame, targets: pd.DatetimeIndex,
     return out
 
 
+def with_predecessor(catalog: pd.DataFrame, lo_min: float = 6.0, hi_min: float = 30.0) -> pd.DataFrame:
+    """Frames that have an earlier frame `lo_min`–`hi_min` minutes before them (a running-difference pair).
+
+    Selecting the slot frame from these keeps every slot's running difference defined; the plain
+    nearest frame lacks one in ~1.6 % of LASCO C2 slots, which removes half of the 7-day windows.
+    """
+    t = catalog["datetime"].to_numpy(dtype="datetime64[ns]")
+    j = np.searchsorted(t, t - np.timedelta64(int(lo_min * 60), "s"), side="right") - 1
+    ok = (j >= 0) & (t[np.clip(j, 0, None)] >= t - np.timedelta64(int(hi_min * 60), "s"))
+    return catalog[ok].reset_index(drop=True)
+
+
 def slot_targets(start: str, end: str, slot_hours=SLOT_HOURS_4) -> pd.DataFrame:
     """One row per (date, slot_hour) over [start, end] inclusive, with the slot timestamp."""
     days = pd.date_range(start, end, freq="D")
@@ -88,12 +100,17 @@ def slot_targets(start: str, end: str, slot_hours=SLOT_HOURS_4) -> pd.DataFrame:
 
 
 def build_slot_table(conn, start: str, end: str, slot_hours=SLOT_HOURS_4,
-                     tol_min: float = 180.0, sources=tuple(SOURCES)) -> pd.DataFrame:
-    """Long table (COLUMNS) of the nearest frame per day × slot × source."""
+                     tol_min: float = 180.0, sources=tuple(SOURCES), require_prev=None) -> pd.DataFrame:
+    """Long table (COLUMNS) of the nearest frame per day × slot × source.
+
+    `require_prev=(lo, hi)` minutes restricts LASCO C2 to frames with a predecessor in that range.
+    """
     targets = slot_targets(start, end, slot_hours)
     parts = []
     for src in sources:
         cat = load_catalog(conn, src)
+        if require_prev and src == "lasco_c2":
+            cat = with_predecessor(cat, *require_prev)
         near = nearest_frames(cat, pd.DatetimeIndex(targets["slot_time"]), tol_min)
         part = targets[["date", "slot_hour"]].copy()
         part["source"] = src

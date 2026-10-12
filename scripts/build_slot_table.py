@@ -5,6 +5,9 @@ Needs the SOLARIS_DB_* env vars; the NAS mount only with --check-files.
     python scripts/build_slot_table.py                        # → $GEOINDEX_DAILY_DATA/slot_table.parquet
     python scripts/build_slot_table.py --tol-min 180 --check-files
     python scripts/build_slot_table.py --start 2010-09-01 --end 2024-12-31 --out /tmp/slots.parquet
+    # W42: LASCO C2 alone at twelve 2-hour slots, ±60 min
+    python scripts/build_slot_table.py --sources lasco_c2 --slot-hours 0 2 4 6 8 10 12 14 16 18 20 22 \
+        --tol-min 60 --require-prev 6 30 --out $GEOINDEX_DAILY_DATA/slot_table_lasco12.parquet
 """
 import argparse
 import sys
@@ -54,12 +57,18 @@ def main() -> int:
     p.add_argument("--end", default=None, help="YYYY-MM-DD inclusive (default: yesterday)")
     p.add_argument("--tol-min", type=float, default=180.0, help="max |frame − slot| in minutes")
     p.add_argument("--check-files", action="store_true", help="stat every selected frame on the NAS")
+    p.add_argument("--sources", nargs="*", default=None, help="subset of the catalog sources (default: all)")
+    p.add_argument("--slot-hours", nargs="*", type=int, default=None, help="slot hours (default: 0 6 12 18)")
+    p.add_argument("--require-prev", nargs=2, type=float, default=None, metavar=("LO", "HI"),
+                   help="LASCO C2: only frames with an earlier frame LO–HI min before (running difference)")
     args = p.parse_args()
 
     end = args.end or (date.today() - timedelta(days=1)).isoformat()
     out = Path(args.out) if args.out else default_data_dir() / "slot_table.parquet"
     with connect("solar_images") as conn:
-        table = build_slot_table(conn, args.start, end, SLOT_HOURS_4, args.tol_min)
+        hours = tuple(args.slot_hours) if args.slot_hours else SLOT_HOURS_4
+        table = build_slot_table(conn, args.start, end, hours, args.tol_min, tuple(args.sources or SOURCES),
+                                 args.require_prev)
     if args.check_files:
         table["exists"] = check_files(table)
         missing = table[table.file_path.notna() & ~table.exists]
@@ -70,7 +79,12 @@ def main() -> int:
     path = save_slot_table(table, out)
     print(f"wrote {path}: {len(table)} rows, {table.date.nunique()} days {args.start} .. {end}, "
           f"tol ±{args.tol_min:g} min")
-    report(table)
+    if args.sources or args.slot_hours:       # the report assumes the four target sources at 4 / 2 slots
+        comp = day_completeness(table, tuple(table.source.unique()), hours)["all"]
+        print(f"slot fill {table.file_path.notna().mean():.3f}; complete days {int(comp.sum())} / {len(comp)}")
+        print(window_counts(comp, range(1, 8)).T.to_string())
+    else:
+        report(table)
     return 0
 
 
