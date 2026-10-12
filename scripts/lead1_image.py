@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from geoindex_daily.daily_index import default_data_dir  # noqa: E402
 from geoindex_daily.features import load_daily_features  # noqa: E402
+from geoindex_daily.frames import cache_path  # noqa: E402
 from geoindex_daily.image_data import FrameWindowDataset, TwoCadenceDataset, check_cache  # noqa: E402
 from geoindex_daily.lead1 import (  # noqa: E402
     block_bootstrap_diff, common_issue_days, feature_windows, ffill_features,
@@ -105,6 +106,9 @@ def main() -> int:
         lslots = lslots.assign(slot_time=lslots.date + pd.to_timedelta(lslots.slot_hour, unit="h")).merge(
             prev, on="slot_time", how="left")
         lslots.loc[lslots.prev_path.isna(), "file_path"] = None      # no previous frame → no running difference
+        # a slot without its cached frame fails the whole 7-day window, so every L keeps the same days
+        cached = lslots.slot_time.map(lambda t: cache_path(cache_dir, lcfg["channel"], t).exists())
+        lslots.loc[~cached, "file_path"] = None
         img_days = img_days.intersection(image_complete_days(
             lslots, ("lasco_c2",), tuple(lcfg["slot_hours"]), cfg["sample_window_days"]))
     days = common_issue_days(df, all_cols, cfg["history_days"], cfg["lead"], tuple(cfg["period"]), img_days)

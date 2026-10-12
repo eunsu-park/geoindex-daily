@@ -7,7 +7,7 @@ Needs the SOLARIS_DB_* env vars; the NAS mount only with --check-files.
     python scripts/build_slot_table.py --start 2010-09-01 --end 2024-12-31 --out /tmp/slots.parquet
     # W42: LASCO C2 alone at twelve 2-hour slots, ±60 min
     python scripts/build_slot_table.py --sources lasco_c2 --slot-hours 0 2 4 6 8 10 12 14 16 18 20 22 \
-        --tol-min 60 --require-prev 6 30 --out $GEOINDEX_DAILY_DATA/slot_table_lasco12.parquet
+        --tol-min 60 --require-prev 6 30 --naxis 1024 --out $GEOINDEX_DAILY_DATA/slot_table_lasco12.parquet
 """
 import argparse
 import sys
@@ -61,6 +61,7 @@ def main() -> int:
     p.add_argument("--slot-hours", nargs="*", type=int, default=None, help="slot hours (default: 0 6 12 18)")
     p.add_argument("--require-prev", nargs=2, type=float, default=None, metavar=("LO", "HI"),
                    help="LASCO C2: only frames with an earlier frame LO–HI min before (running difference)")
+    p.add_argument("--naxis", type=int, default=None, help="LASCO C2: only frames of this image size")
     args = p.parse_args()
 
     end = args.end or (date.today() - timedelta(days=1)).isoformat()
@@ -68,7 +69,7 @@ def main() -> int:
     with connect("solar_images") as conn:
         hours = tuple(args.slot_hours) if args.slot_hours else SLOT_HOURS_4
         table = build_slot_table(conn, args.start, end, hours, args.tol_min, tuple(args.sources or SOURCES),
-                                 args.require_prev)
+                                 args.require_prev, args.naxis)
     if args.check_files:
         table["exists"] = check_files(table)
         missing = table[table.file_path.notna() & ~table.exists]

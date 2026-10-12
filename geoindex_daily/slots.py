@@ -40,10 +40,14 @@ def default_archive_root() -> Path:
     return Path(os.environ.get("SOLARIS_ARCHIVE_ROOT", Path.home() / "Archive"))
 
 
-def load_catalog(conn, source: str) -> pd.DataFrame:
-    """All frames of one source as a frame sorted by datetime: columns datetime, file_path."""
+def load_catalog(conn, source: str, naxis: int | None = None) -> pd.DataFrame:
+    """All frames of one source as a frame sorted by datetime: columns datetime, file_path.
+
+    `naxis` keeps only frames of that image size (LASCO: C2 also takes 512² binned frames, which
+    cannot pair with a 1024² frame in a running difference).
+    """
     cur = conn.cursor()
-    cur.execute(SOURCES[source] + " order by datetime")
+    cur.execute(SOURCES[source] + (f" and naxis1 = {int(naxis)}" if naxis else "") + " order by datetime")
     df = pd.DataFrame(cur.fetchall(), columns=["datetime", "file_path"])
     df["datetime"] = pd.to_datetime(df["datetime"])
     return df.sort_values("datetime").reset_index(drop=True)
@@ -100,15 +104,17 @@ def slot_targets(start: str, end: str, slot_hours=SLOT_HOURS_4) -> pd.DataFrame:
 
 
 def build_slot_table(conn, start: str, end: str, slot_hours=SLOT_HOURS_4,
-                     tol_min: float = 180.0, sources=tuple(SOURCES), require_prev=None) -> pd.DataFrame:
+                     tol_min: float = 180.0, sources=tuple(SOURCES), require_prev=None,
+                     naxis: int | None = None) -> pd.DataFrame:
     """Long table (COLUMNS) of the nearest frame per day × slot × source.
 
-    `require_prev=(lo, hi)` minutes restricts LASCO C2 to frames with a predecessor in that range.
+    `require_prev=(lo, hi)` minutes restricts LASCO C2 to frames with a predecessor in that range;
+    `naxis` restricts LASCO C2 (frames and predecessors) to one image size.
     """
     targets = slot_targets(start, end, slot_hours)
     parts = []
     for src in sources:
-        cat = load_catalog(conn, src)
+        cat = load_catalog(conn, src, naxis if src == "lasco_c2" else None)
         if require_prev and src == "lasco_c2":
             cat = with_predecessor(cat, *require_prev)
         near = nearest_frames(cat, pd.DatetimeIndex(targets["slot_time"]), tol_min)

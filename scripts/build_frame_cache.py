@@ -11,8 +11,9 @@ and `index.parquet`. Needs the archive (SOLARIS_ARCHIVE_ROOT, from `~/.solaris_e
     python scripts/build_frame_cache.py build --workers 6 [--start 2010-09-01 --end 2025-12-31]
     python scripts/build_frame_cache.py index          # rebuild index.parquet from what is on disk
     # W42: running difference only, at the twelve 2-hour LASCO slots (existing files are kept)
-    python scripts/build_frame_cache.py prev --table slot_table_lasco12.parquet --prev-file lasco_c2_prev12.parquet
-    python scripts/build_frame_cache.py build --table slot_table_lasco12.parquet --prev-file lasco_c2_prev12.parquet --rd-only
+    python scripts/build_frame_cache.py prev --table slot_table_lasco12.parquet --prev-file lasco_c2_prev12.parquet --naxis 1024
+    python scripts/build_frame_cache.py build --table slot_table_lasco12.parquet --prev-file lasco_c2_prev12.parquet \
+        --rd-only --rd-channel lasco_c2_rd12
 """
 import argparse
 import os
@@ -61,7 +62,8 @@ def cmd_prev(args, data_dir):
     t = t[(t.source == "lasco_c2") & t.file_path.notna()]
     with connect("solar_images") as conn:
         cur = conn.cursor()
-        cur.execute("select datetime, file_path from lasco where camera='c2' and filter='Orange' order by datetime")
+        cur.execute("select datetime, file_path from lasco where camera='c2' and filter='Orange'"
+                    + (f" and naxis1 = {int(args.naxis)}" if args.naxis else "") + " order by datetime")
         cat = pd.DataFrame(cur.fetchall(), columns=["datetime", "file_path"])
     cat["datetime"] = pd.to_datetime(cat["datetime"])
     times = cat["datetime"].to_numpy()
@@ -105,8 +107,8 @@ def cmd_calibrate(args, data_dir):
 _G = {}
 
 
-def _init(root, cache_dir, calib, rd_only=False):
-    _G.update(root=Path(root), cache_dir=Path(cache_dir), calib=calib, rd_only=rd_only)
+def _init(root, cache_dir, calib, rd_only=False, rd_channel="lasco_c2_rd"):
+    _G.update(root=Path(root), cache_dir=Path(cache_dir), calib=calib, rd_only=rd_only, rd_channel=rd_channel)
 
 
 def _one(row):
@@ -117,7 +119,8 @@ def _one(row):
     res = []
     try:
         rd_only = _G["rd_only"] and src == "lasco_c2"
-        todo = ([] if rd_only else [src]) + (["lasco_c2_rd"] if src == "lasco_c2" else [])
+        rd = _G["rd_channel"]
+        todo = ([] if rd_only else [src]) + ([rd] if src == "lasco_c2" else [])
         outs = {s: cache_path(cache_dir, s, st) for s in todo}
         if all(p.exists() for p in outs.values()):
             return [(s, st, str(p), "exists") for s, p in outs.items()]
@@ -135,17 +138,17 @@ def _one(row):
             np.save(out, arr)
             res.append((src, st, str(out), "ok"))
         if src == "lasco_c2":
-            o2 = outs["lasco_c2_rd"]
+            o2 = outs[rd]
             if prev:
                 q, hq = load_frame(root / prev)
                 if q.shape == d.shape:
                     o2.parent.mkdir(parents=True, exist_ok=True)
                     np.save(o2, lasco_running_difference(d, h["EXPTIME"], q, hq["EXPTIME"], calib["lasco_c2_rd"]["scale"]))
-                    res.append(("lasco_c2_rd", st, str(o2), "ok"))
+                    res.append((rd, st, str(o2), "ok"))
                 else:
-                    res.append(("lasco_c2_rd", st, str(o2), "shape-mismatch"))
+                    res.append((rd, st, str(o2), "shape-mismatch"))
             else:
-                res.append(("lasco_c2_rd", st, str(o2), "no-previous-frame"))
+                res.append((rd, st, str(o2), "no-previous-frame"))
     except Exception as e:  # noqa: BLE001 — keep the pool alive, record the failure
         res.append((src, st, str(out), f"error: {type(e).__name__}: {e}"))
     return res
@@ -161,7 +164,7 @@ def cmd_build(args, data_dir):
     rows = [(a, b, c, (None if pd.isna(d) else d)) for a, b, c, d in zip(t.source, t.slot_time, t.file_path, t.prev_path)]
     print(f"{len(rows)} slot frames, archive {root}, cache {cache_dir}, {args.workers} workers, calib {calib}")
     t0, done, log = time.time(), 0, []
-    with Pool(args.workers, initializer=_init, initargs=(root, cache_dir, calib, args.rd_only)) as pool:
+    with Pool(args.workers, initializer=_init, initargs=(root, cache_dir, calib, args.rd_only, args.rd_channel)) as pool:
         for res in pool.imap_unordered(_one, rows, chunksize=4):
             log.extend(res)
             done += 1
@@ -171,7 +174,7 @@ def cmd_build(args, data_dir):
                 print(f"  {done}/{len(rows)} slots, {rate:.1f}/s, eta {(len(rows) - done) / max(rate, 1e-6) / 60:.0f} min, "
                       f"{bad} errors", flush=True)
     idx = pd.DataFrame(log, columns=["source", "slot_time", "path", "status"])
-    idx.to_parquet(cache_dir / ("build_log_rd.parquet" if args.rd_only else "build_log.parquet"), index=False)
+    idx.to_parquet(cache_dir / (f"build_log_{args.rd_channel}.parquet" if args.rd_only else "build_log.parquet"), index=False)
     print(idx.status.str.split(":").str[0].value_counts().to_string())
     return cmd_index(args, data_dir)
 
@@ -200,6 +203,8 @@ def main() -> int:
     p.add_argument("--table", default="slot_table.parquet", help="prev / build: slot table in the data dir")
     p.add_argument("--prev-file", default="lasco_c2_prev.parquet", help="prev / build: previous-C2-frame table")
     p.add_argument("--rd-only", action="store_true", help="build: LASCO running difference only, no raw C2 frame")
+    p.add_argument("--rd-channel", default="lasco_c2_rd", help="build: cache channel name for the running difference")
+    p.add_argument("--naxis", type=int, default=None, help="prev: only previous frames of this image size")
     args = p.parse_args()
     data_dir = default_data_dir()
     return {"prev": cmd_prev, "calibrate": cmd_calibrate, "build": cmd_build, "index": cmd_index}[args.command](args, data_dir)

@@ -70,8 +70,8 @@ image_model:                  # arms D / E / I (scripts/lead1_image.py); see the
   max_epochs: 40
   patience: 8
 lasco12:                      # W42 (scripts/lead1_image.py --lasco12): LASCO C2 running difference, own branch
-  slot_file: slot_table_lasco12.parquet     # LASCO C2 only, built with --tol-min 60
+  slot_file: slot_table_lasco12.parquet     # LASCO C2 only, 1024² frames with a 1024² predecessor 6–30 min before, ±60 min
   prev_file: lasco_c2_prev12.parquet        # the C2 frame 6–30 min before each slot frame (as in W41)
   slot_hours: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]
-  channel: lasco_c2_rd
+  channel: lasco_c2_rd12                     # cache channel, built with --rd-only --rd-channel lasco_c2_rd12
   sdo_channels: [aia193, aia211, hmi_m45]   # stay at slot_hours (four a day)
