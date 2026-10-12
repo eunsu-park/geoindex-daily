@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Run the i3 LoRA experiment queue once the token cache has finished.
-# Usage:  setsid nohup bash scripts/lora_queue.sh > ~/Data/GeoIndex/daily/lora/queue.log 2>&1 &
+# Usage:  setsid nohup bash scripts/lora_queue.sh > ~/Caches/GeoIndex/daily/lora/queue.log 2>&1 &
 set -u
 cd "$(dirname "$0")/.."
-export GEOINDEX_DAILY_DATA=${GEOINDEX_DAILY_DATA:-$HOME/Data/GeoIndex/daily}
+export GEOINDEX_DAILY_DATA=${GEOINDEX_DAILY_DATA:-$HOME/Caches/GeoIndex/daily}
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 PY=${PY:-$HOME/Softwares/miniconda3/envs/geoindex/bin/python}
-CKPT=${CKPT:-$HOME/Data/GeoIndex/surya_probe/ckpt}
+CKPT=${CKPT:-$HOME/Caches/GeoIndex/surya_probe/ckpt}
 mkdir -p "$GEOINDEX_DAILY_DATA/lora"
 COMMON="--ckpt $CKPT --batch 1 --accum 16 --workers 4 --freeze-through 1 --epochs 10 --patience 3"
 
