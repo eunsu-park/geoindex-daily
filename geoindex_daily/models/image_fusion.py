@@ -12,9 +12,14 @@ by a 1-D temporal convolution, each with its own normalisation and activation):
     global average pool over (T, H, W)       → (N, 256)
 
 Time-series branch: `TSCNN.features` → (N, 32). Head: concat → MLP → 1.
+
+With `lasco_channels > 0` a second image branch of the same form takes the LASCO frames, which
+come at their own cadence (W42: running difference, twelve frames a day against four for SDO);
+the head then sees SDO 256 + LASCO 256 + time series 32.
 """
 import torch
 from torch import nn
+from torch.utils.checkpoint import checkpoint
 
 from .ts_cnn import TSCNN
 
@@ -39,8 +44,10 @@ class Block2p1D(nn.Module):
 
 
 class ImageBranch(nn.Module):
-    def __init__(self, n_channels: int = 4, widths=(32, 64, 128, 256), stem_patch: int = 4):
+    def __init__(self, n_channels: int = 4, widths=(32, 64, 128, 256), stem_patch: int = 4,
+                 grad_checkpoint: bool = False):
         super().__init__()
+        self.grad_checkpoint = grad_checkpoint   # recompute activations in backward (memory for time)
         self.register_buffer("mean", torch.full((1, n_channels, 1, 1, 1), 0.5))
         self.register_buffer("std", torch.full((1, n_channels, 1, 1, 1), 0.25))
         self.stem = nn.Sequential(
@@ -58,10 +65,18 @@ class ImageBranch(nn.Module):
         self.mean.copy_(torch.as_tensor(mean, dtype=torch.float32).view(1, -1, 1, 1, 1))
         self.std.copy_(torch.as_tensor(std, dtype=torch.float32).view(1, -1, 1, 1, 1))
 
-    def forward(self, img):                     # img: (N, C, T, H, W) uint8 or float in [0, 1]
+    def _stem(self, img):
         x = img.float() / 255.0 if img.dtype == torch.uint8 else img
-        x = (x - self.mean) / self.std
-        x = self.stages(self.stem(x))
+        return self.stem((x - self.mean) / self.std)
+
+    def forward(self, img):                     # img: (N, C, T, H, W) uint8 or float in [0, 1]
+        if self.grad_checkpoint and self.training:
+            # only the uint8 input and each stage's output are kept; the float copies are recomputed
+            x = checkpoint(self._stem, img, use_reentrant=False)
+            for m in self.stages:
+                x = checkpoint(m, x, use_reentrant=False)
+        else:
+            x = self.stages(self._stem(img))
         return self.pool(x).flatten(1)
 
 
@@ -69,16 +84,22 @@ class ImageFusion(nn.Module):
     """Late fusion of the image branch and the time-series branch; `ts_features` may be 0 (images only)."""
 
     def __init__(self, n_channels: int = 4, ts_features: int = 1, widths=(32, 64, 128, 256),
-                 ts_width: int = 32, hidden: int = 128, dropout: float = 0.2):
+                 ts_width: int = 32, hidden: int = 128, dropout: float = 0.2, lasco_channels: int = 0,
+                 grad_checkpoint: bool = False):
         super().__init__()
-        self.image = ImageBranch(n_channels, widths)
+        self.image = ImageBranch(n_channels, widths, grad_checkpoint=grad_checkpoint)
+        self.lasco = (ImageBranch(lasco_channels, widths, grad_checkpoint=grad_checkpoint)
+                      if lasco_channels > 0 else None)
         self.ts = TSCNN(ts_features, ts_width) if ts_features > 0 else None
-        d = self.image.embed_dim + (ts_width if ts_features > 0 else 0)
+        d = self.image.embed_dim + (self.lasco.embed_dim if self.lasco is not None else 0) \
+            + (ts_width if ts_features > 0 else 0)
         self.head = nn.Sequential(nn.Dropout(dropout), nn.Linear(d, hidden), nn.GELU(),
                                   nn.Dropout(dropout), nn.Linear(hidden, 1))
 
-    def forward(self, img, ts=None):
+    def forward(self, img, ts=None, lasco=None):
         z = self.image(img)
+        if self.lasco is not None:
+            z = torch.cat([z, self.lasco(lasco)], dim=1)
         if self.ts is not None:
             z = torch.cat([z, self.ts.features(ts)], dim=1)
         return self.head(z).squeeze(-1)

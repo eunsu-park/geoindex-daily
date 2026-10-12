@@ -8,6 +8,10 @@ config), so every score is paired with the l1 forecasts saved in `l1_preds_<spli
     python scripts/lead1_image.py --arm E --lengths 2 --seeds 0 --split A            # one run
     python scripts/lead1_image.py --arm E --lengths 1 2 3 5 7 --seeds 0 1 2 --split A
     python scripts/lead1_image.py --arm E --lengths 2 --seeds 0 --limit 8 --epochs 1 --device mps  # smoke
+    python scripts/lead1_image.py --arm B --lasco12 --lengths 4 --seeds 0 --split A      # W42 (l3): SDO + LASCO RD 12/day
+With --lasco12 (config `lasco12`) the SDO channels keep the four slots and LASCO C2 enters as its running
+difference at twelve 2-hour slots through a second image branch; the issue days are the W41 days whose
+7-day window also has every LASCO slot and its previous frame; outputs are tagged l3.
 Outputs in $GEOINDEX_DAILY_DATA/lead1/: l2_scores.csv (appended), l2_preds_<split>_<arm>_L<L>_s<seed>.npz,
 l2_log_<split>_<arm>_L<L>_s<seed>.csv (per-epoch), checkpoints under lead1/ckpt/.
 """
@@ -32,7 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from geoindex_daily.daily_index import default_data_dir  # noqa: E402
 from geoindex_daily.features import load_daily_features  # noqa: E402
-from geoindex_daily.image_data import FrameWindowDataset, check_cache  # noqa: E402
+from geoindex_daily.image_data import FrameWindowDataset, TwoCadenceDataset, check_cache  # noqa: E402
 from geoindex_daily.lead1 import (  # noqa: E402
     block_bootstrap_diff, common_issue_days, feature_windows, ffill_features,
     image_complete_days, score_lead1, split_masks,
@@ -61,8 +65,11 @@ def main() -> int:
     p.add_argument("--limit", type=int, default=None, help="smoke test: use this many samples per split")
     p.add_argument("--device", default=None)
     p.add_argument("--no-amp", action="store_true")
-    p.add_argument("--tag", default="l2")
+    p.add_argument("--tag", default=None, help="output prefix (default l2, or l3 with --lasco12)")
+    p.add_argument("--grad-checkpoint", action="store_true", help="recompute image activations in backward (memory)")
+    p.add_argument("--lasco12", action="store_true", help="W42: LASCO running difference at 12 slots/day, own branch")
     args = p.parse_args()
+    args.tag = args.tag or ("l3" if args.lasco12 else "l2")
 
     cfg = yaml.safe_load(Path(args.config).read_text())
     icfg = cfg.get("image_model", {})
@@ -70,7 +77,9 @@ def main() -> int:
     out = data / cfg["out_dir"]
     (out / "ckpt").mkdir(parents=True, exist_ok=True)
     cache_dir = data / "frames1024"
-    channels = tuple(args.channels or icfg.get("channels", ["aia193", "aia211", "hmi_m45", "lasco_c2"]))
+    lcfg = cfg["lasco12"] if args.lasco12 else None
+    channels = tuple(args.channels or (lcfg["sdo_channels"] if lcfg else
+                                       icfg.get("channels", ["aia193", "aia211", "hmi_m45", "lasco_c2"])))
     slot_hours = tuple(args.slots or cfg["slot_hours"])
     lengths = args.lengths or cfg["image_input_days"]
     seeds = args.seeds or cfg["seeds"]
@@ -90,6 +99,14 @@ def main() -> int:
     df["ap_t"] = tf(df["ap"])
     slots = load_slot_table(data / cfg["slot_file"])
     img_days = image_complete_days(slots, cfg["image_sources"], tuple(cfg["slot_hours"]), cfg["sample_window_days"])
+    if lcfg:
+        lslots = load_slot_table(data / lcfg["slot_file"])
+        prev = pd.read_parquet(data / lcfg["prev_file"])[["slot_time", "prev_path"]]
+        lslots = lslots.assign(slot_time=lslots.date + pd.to_timedelta(lslots.slot_hour, unit="h")).merge(
+            prev, on="slot_time", how="left")
+        lslots.loc[lslots.prev_path.isna(), "file_path"] = None      # no previous frame → no running difference
+        img_days = img_days.intersection(image_complete_days(
+            lslots, ("lasco_c2",), tuple(lcfg["slot_hours"]), cfg["sample_window_days"]))
     days = common_issue_days(df, all_cols, cfg["history_days"], cfg["lead"], tuple(cfg["period"]), img_days)
     y_all = df["ap"].to_numpy()[df.index.get_indexer(days) + cfg["lead"]]
     masks = split_masks(days, cfg["splits"][args.split])
@@ -105,6 +122,8 @@ def main() -> int:
         X, yt = feature_windows(df, ts_cols, L, days, target_col="ap_t", lead=cfg["lead"])
         # the frames must exist for every sample; drop (and report) the ones not yet cached
         ok = check_cache(cache_dir, days, L, slot_hours, channels)["ok"].to_numpy()
+        if lcfg:
+            ok = ok & check_cache(cache_dir, days, L, tuple(lcfg["slot_hours"]), (lcfg["channel"],))["ok"].to_numpy()
         sel = {k: m & ok for k, m in masks.items()}
         if args.limit:                       # smoke test of the mechanics only: same few cached days everywhere
             idx = np.flatnonzero(ok)[: args.limit]
@@ -122,6 +141,9 @@ def main() -> int:
 
         def loader(mask, shuffle, seed=0):
             ds = FrameWindowDataset(cache_dir, days[mask], L, slot_hours, channels, Xs[mask], yz[mask])
+            if lcfg:
+                ds = TwoCadenceDataset(ds, FrameWindowDataset(cache_dir, days[mask], L, tuple(lcfg["slot_hours"]),
+                                                              (lcfg["channel"],), Xs[mask], yz[mask]))
             g = torch.Generator().manual_seed(seed)
             return DataLoader(ds, batch_size=batch, shuffle=shuffle, num_workers=args.workers,
                               pin_memory=device.type == "cuda", generator=g, persistent_workers=args.workers > 0)
@@ -132,7 +154,8 @@ def main() -> int:
             model = ImageFusion(len(channels), len(ts_cols) if feat_key else 0,
                                 widths=tuple(icfg.get("widths", (32, 64, 128, 256))),
                                 ts_width=cfg["ts_cnn"]["width"], hidden=icfg.get("hidden", 128),
-                                dropout=icfg.get("dropout", 0.2)).to(device)
+                                dropout=icfg.get("dropout", 0.2), lasco_channels=1 if lcfg else 0,
+                                grad_checkpoint=args.grad_checkpoint).to(device)
             opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=icfg.get("weight_decay", 1e-4))
             scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
             tag = f"{args.split}_{args.arm}_L{L}_s{seed}"
@@ -141,20 +164,26 @@ def main() -> int:
             best, bad, best_ep = np.inf, 0, 0
             ckpt = out / "ckpt" / f"{args.tag}_{tag}.pt"
 
+            def unpack(b):
+                """(SDO images, LASCO images or None, ts, y) on the device, from a 3- or 4-tuple batch."""
+                img, las, ts, y = b if len(b) == 4 else (b[0], None, b[1], b[2])
+                return (img.to(device, non_blocking=True), None if las is None else las.to(device, non_blocking=True),
+                        ts.to(device), y.to(device))
+
             def run_eval(dl):
                 model.eval(); outp = []
                 with torch.no_grad(), torch.autocast(device.type, enabled=use_amp):
-                    for img, ts, _ in dl:
-                        img, ts = img.to(device, non_blocking=True), ts.to(device)
-                        outp.append(model(img, ts if feat_key else None).float().cpu().numpy())
+                    for b in dl:
+                        img, las, ts, _ = unpack(b)
+                        outp.append(model(img, ts if feat_key else None, las).float().cpu().numpy())
                 return inv(np.concatenate(outp) * ys + ym)
 
             for ep in range(1, epochs + 1):
                 model.train(); t0 = time.time(); tot = n = 0
-                for img, ts, yb in dl_tr:
-                    img, ts, yb = img.to(device, non_blocking=True), ts.to(device), yb.to(device)
+                for b in dl_tr:
+                    img, las, ts, yb = unpack(b)
                     with torch.autocast(device.type, enabled=use_amp):
-                        loss = torch.nn.functional.mse_loss(model(img, ts if feat_key else None).float(), yb)
+                        loss = torch.nn.functional.mse_loss(model(img, ts if feat_key else None, las).float(), yb)
                     opt.zero_grad(set_to_none=True)
                     scaler.scale(loss).backward(); scaler.step(opt); scaler.update()
                     tot += loss.item() * len(yb); n += len(yb)
@@ -175,7 +204,9 @@ def main() -> int:
             dte = days[te]
             sc = score_lead1(y_all[te], pt, dte, thr)
             row = {"split": args.split, "arm": args.arm, "model": "fusion", "L": L, "seed": seed,
-                   "channels": "+".join(channels), "slots": len(slot_hours), "best_epoch": best_ep,
+                   "channels": "+".join(channels + ((lcfg["channel"],) if lcfg else ())),
+                   "slots": len(slot_hours), "lasco_slots": len(lcfg["slot_hours"]) if lcfg else len(slot_hours),
+                   "best_epoch": best_ep,
                    "val_mae": best, "n_train": int(tr.sum()), **sc}
             # paired comparisons with the l1 forecasts on the same days
             if ref is not None and not args.limit:

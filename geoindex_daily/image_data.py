@@ -58,3 +58,18 @@ class FrameWindowDataset(Dataset):
                     a = a.reshape(self.size, step, self.size, step).mean(axis=(1, 3)).astype(np.uint8)
                 img[c, f] = a
         return torch.from_numpy(img), torch.from_numpy(self.ts[i]), torch.tensor(self.y[i])
+
+
+class TwoCadenceDataset(Dataset):
+    """Returns (SDO images, LASCO images, ts, y): two `FrameWindowDataset`s on the same issue days."""
+
+    def __init__(self, sdo: FrameWindowDataset, lasco: FrameWindowDataset):
+        assert sdo.days == lasco.days
+        self.sdo, self.lasco = sdo, lasco
+
+    def __len__(self):
+        return len(self.sdo)
+
+    def __getitem__(self, i):
+        img, ts, y = self.sdo[i]
+        return img, self.lasco[i][0], ts, y
