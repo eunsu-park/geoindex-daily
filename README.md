@@ -46,6 +46,8 @@ scripts/
   lead1_image.py           lead-1 image arms (D: images + Ap · B: images + Ap + X-ray · E: images + all · I: images only): (2+1)D branch + 1-D CNN branch, paired with l1
   lead1_l2_summary.py      l2 seed-mean forecasts vs their no-image l1 twins, the L = 1 curve and persistence; bootstrap → lead1/l2_summary_*.csv
   plot_lead1_figures.py    lead-1 report figures: length curve, image effect, case windows, arch_lead1_fusion.png
+  lead1_l3_summary.py      l3 (W42: LASCO running difference, 12 slots/day, own branch) vs W41 on the same days, no images, persistence; length rule → lead1/l3_summary_*.csv
+  plot_lead1_l3_figures.py l3 report figures: length curve, W42 − W41, cases, LASCO input, arch_lead1_fusion_l3.png
   eval_baselines.py        baseline scores by lead time → CSV
   load_swpc_prf.py         space_weather.swpc_prf_outlook (solaris-data) → local parquet
   eval_swpc.py             score SWPC outlooks vs observed Ap, with references on the same pairs
@@ -92,6 +94,13 @@ python scripts/build_frame_cache.py prev|calibrate|build|index   # frame cache (
 python scripts/lead1_image.py --arm E --lengths 1 2 3 5 7      # lead-1 image arms (l2), CUDA
 python scripts/lead1_l2_summary.py                       # l2 summary + bootstrap (after the sweep)
 python scripts/plot_lead1_figures.py [--cases A:B ...]   # lead-1 report figures → vault experiments/figures
+python scripts/build_slot_table.py --sources lasco_c2 --slot-hours 0 2 4 6 8 10 12 14 16 18 20 22 \
+    --tol-min 60 --require-prev 6 30 --naxis 1024 --out $GEOINDEX_DAILY_DATA/slot_table_lasco12.parquet
+python scripts/build_frame_cache.py prev --table slot_table_lasco12.parquet --prev-file lasco_c2_prev12.parquet --naxis 1024
+python scripts/build_frame_cache.py build --table slot_table_lasco12.parquet --prev-file lasco_c2_prev12.parquet \
+    --rd-only --rd-channel lasco_c2_rd12 --sources lasco_c2   # l3 LASCO RD cache
+python scripts/lead1_image.py --arm B --lasco12 --grad-checkpoint --lengths 1  # l3 (W42), CUDA
+python scripts/lead1_l3_summary.py && python scripts/plot_lead1_l3_figures.py  # l3 summary + figures
 python scripts/render_report_pdf.py <report.md> ...      # PDF next to each vault report
 python scripts/eval_baselines.py --config configs/ap.yaml            # all issue dates
 python scripts/eval_baselines.py --config configs/ap.yaml --split test
