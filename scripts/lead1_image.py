@@ -11,7 +11,8 @@ config), so every score is paired with the l1 forecasts saved in `l1_preds_<spli
     python scripts/lead1_image.py --arm B --lasco12 --lengths 4 --seeds 0 --split A      # W42 (l3): SDO + LASCO RD 12/day
 With --lasco12 (config `lasco12`) the SDO channels keep the four slots and LASCO C2 enters as its running
 difference at twelve 2-hour slots through a second image branch; the issue days are the W41 days whose
-7-day window also has every LASCO slot and its previous frame; outputs are tagged l3.
+7-day window also has every LASCO slot and its previous frame; outputs are tagged l3. Adding --no-sdo drops
+the AIA / HMI branch (LASCO RD + time series only; same issue days; tagged l4).
 Outputs in $GEOINDEX_DAILY_DATA/lead1/: l2_scores.csv (appended), l2_preds_<split>_<arm>_L<L>_s<seed>.npz,
 l2_log_<split>_<arm>_L<L>_s<seed>.csv (per-epoch), checkpoints under lead1/ckpt/.
 """
@@ -69,8 +70,10 @@ def main() -> int:
     p.add_argument("--tag", default=None, help="output prefix (default l2, or l3 with --lasco12)")
     p.add_argument("--grad-checkpoint", action="store_true", help="recompute image activations in backward (memory)")
     p.add_argument("--lasco12", action="store_true", help="W42: LASCO running difference at 12 slots/day, own branch")
+    p.add_argument("--no-sdo", action="store_true", help="with --lasco12: no AIA / HMI branch (l4)")
     args = p.parse_args()
-    args.tag = args.tag or ("l3" if args.lasco12 else "l2")
+    assert args.lasco12 or not args.no_sdo, "--no-sdo needs --lasco12"
+    args.tag = args.tag or ("l4" if args.no_sdo else "l3" if args.lasco12 else "l2")
 
     cfg = yaml.safe_load(Path(args.config).read_text())
     icfg = cfg.get("image_model", {})
@@ -79,7 +82,7 @@ def main() -> int:
     (out / "ckpt").mkdir(parents=True, exist_ok=True)
     cache_dir = data / "frames1024"
     lcfg = cfg["lasco12"] if args.lasco12 else None
-    channels = tuple(args.channels or (lcfg["sdo_channels"] if lcfg else
+    channels = () if args.no_sdo else tuple(args.channels or (lcfg["sdo_channels"] if lcfg else
                                        icfg.get("channels", ["aia193", "aia211", "hmi_m45", "lasco_c2"])))
     slot_hours = tuple(args.slots or cfg["slot_hours"])
     lengths = args.lengths or cfg["image_input_days"]

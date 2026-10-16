@@ -15,7 +15,8 @@ Time-series branch: `TSCNN.features` → (N, 32). Head: concat → MLP → 1.
 
 With `lasco_channels > 0` a second image branch of the same form takes the LASCO frames, which
 come at their own cadence (W42: running difference, twelve frames a day against four for SDO);
-the head then sees SDO 256 + LASCO 256 + time series 32.
+the head then sees SDO 256 + LASCO 256 + time series 32. With `n_channels = 0` there is no SDO branch
+(W42 follow-up, l4: LASCO and the time series only).
 """
 import torch
 from torch import nn
@@ -87,19 +88,20 @@ class ImageFusion(nn.Module):
                  ts_width: int = 32, hidden: int = 128, dropout: float = 0.2, lasco_channels: int = 0,
                  grad_checkpoint: bool = False):
         super().__init__()
-        self.image = ImageBranch(n_channels, widths, grad_checkpoint=grad_checkpoint)
+        self.image = ImageBranch(n_channels, widths, grad_checkpoint=grad_checkpoint) if n_channels > 0 else None
         self.lasco = (ImageBranch(lasco_channels, widths, grad_checkpoint=grad_checkpoint)
                       if lasco_channels > 0 else None)
         self.ts = TSCNN(ts_features, ts_width) if ts_features > 0 else None
-        d = self.image.embed_dim + (self.lasco.embed_dim if self.lasco is not None else 0) \
-            + (ts_width if ts_features > 0 else 0)
+        d = sum(b.embed_dim for b in (self.image, self.lasco) if b is not None) + (ts_width if ts_features > 0 else 0)
         self.head = nn.Sequential(nn.Dropout(dropout), nn.Linear(d, hidden), nn.GELU(),
                                   nn.Dropout(dropout), nn.Linear(hidden, 1))
 
     def forward(self, img, ts=None, lasco=None):
-        z = self.image(img)
+        z = []
+        if self.image is not None:
+            z.append(self.image(img))
         if self.lasco is not None:
-            z = torch.cat([z, self.lasco(lasco)], dim=1)
+            z.append(self.lasco(lasco))
         if self.ts is not None:
-            z = torch.cat([z, self.ts.features(ts)], dim=1)
-        return self.head(z).squeeze(-1)
+            z.append(self.ts.features(ts))
+        return self.head(torch.cat(z, dim=1)).squeeze(-1)
