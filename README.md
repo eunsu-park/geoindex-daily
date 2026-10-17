@@ -101,6 +101,8 @@ python scripts/build_frame_cache.py build --table slot_table_lasco12.parquet --p
     --rd-only --rd-channel lasco_c2_rd12 --sources lasco_c2   # l3 LASCO RD cache
 python scripts/lead1_image.py --arm B --lasco12 --grad-checkpoint --lengths 1  # l3 (W42), CUDA
 python scripts/lead1_l3_summary.py && python scripts/plot_lead1_l3_figures.py  # l3 summary + figures
+python scripts/lead1_image.py --arm B --lasco12 --no-sdo --grad-checkpoint --lengths 2 --workers 4  # l4: no AIA / HMI
+python scripts/lead1_l3_summary.py --tag l4               # l4 vs l3, W41, no images
 python scripts/render_report_pdf.py <report.md> ...      # PDF next to each vault report
 python scripts/eval_baselines.py --config configs/ap.yaml            # all issue dates
 python scripts/eval_baselines.py --config configs/ap.yaml --split test
