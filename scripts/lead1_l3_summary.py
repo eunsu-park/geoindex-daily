@@ -11,7 +11,8 @@ Monthly block bootstrap of the MAE / CC differences:
   * the length rule: every L against the arm's best L (lowest MAE) and against its neighbours L ± 1.
 
     python scripts/lead1_l3_summary.py
-Outputs in $GEOINDEX_DAILY_DATA/lead1/: l3_summary_scores.csv, l3_summary_bootstrap.csv.
+    python scripts/lead1_l3_summary.py --tag l4   # l4 (no AIA / HMI): also against l3, the same model with them
+Outputs in $GEOINDEX_DAILY_DATA/lead1/: <tag>_summary_scores.csv, <tag>_summary_bootstrap.csv.
 """
 import argparse
 import re
@@ -41,19 +42,21 @@ def seed_mean(files):
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--config", default="configs/ap_lead1.yaml")
+    p.add_argument("--tag", default="l3", choices=["l3", "l4"])
     args = p.parse_args()
+    model_name = {"l3": "W42 image (l3)", "l4": "no AIA/HMI (l4)"}[args.tag]
     cfg = yaml.safe_load(open(args.config))
     thr, n_boot, bseed = cfg["storm_threshold"], cfg["bootstrap"]["n"], cfg["bootstrap"]["seed"]
     out = default_data_dir() / "lead1"
 
     runs = defaultdict(lambda: defaultdict(list))
-    for tag in ("l3", "l2"):
+    for tag in dict.fromkeys((args.tag, "l3", "l2")):   # l3 once when --tag l3
         pat = re.compile(rf"{tag}_preds_([AB])_([A-Z])_L(\d+)_s(\d+)\.npz")
         for f in sorted(out.glob(f"{tag}_preds_*.npz")):
             m = pat.fullmatch(f.name)
             if m:
                 runs[tag][(m[1], m[2], int(m[3]))].append(f)
-    done = {k: v for k, v in runs["l3"].items() if len(v) == len(cfg["seeds"])}
+    done = {k: v for k, v in runs[args.tag].items() if len(v) == len(cfg["seeds"])}
 
     scores, boots, ens = [], [], {}
     for sp in sorted({k[0] for k in done}):
@@ -70,7 +73,11 @@ def main() -> int:
             pos = l1_dates.get_indexer(dates)
             refs = {"W41 image (l2)": p2[pos2], f"no images ({NO_IMAGE[arm]}_cnn)": l1[f"{NO_IMAGE[arm]}_cnn_L{L}"][pos],
                     "persistence": l1["persistence"][pos]}
-            scores.append({"split": sp, "arm": arm, "L": L, "model": "W42 image (l3)", "n_seeds": len(files),
+            if args.tag == "l4":
+                d3, _, p3, _ = seed_mean(runs["l3"][(sp, arm, L)])
+                assert (d3 == dates).all(), "l4 and l3 test days differ"
+                refs = {"W42 with AIA/HMI (l3)": p3, **refs}
+            scores.append({"split": sp, "arm": arm, "L": L, "model": model_name, "n_seeds": len(files),
                            "seed_mae_range": float(np.ptp(seed_mae)), **score_lead1(y, pm, dates, thr)})
             for name, ref in refs.items():
                 scores.append({"split": sp, "arm": arm, "L": L, "model": name, **score_lead1(y, ref, dates, thr)})
@@ -92,8 +99,8 @@ def main() -> int:
                               **block_bootstrap_diff(y, pm, p0, d, n_boot, bseed)})
 
     sc, bt = pd.DataFrame(scores), pd.DataFrame(boots)
-    sc.to_csv(out / "l3_summary_scores.csv", index=False)
-    bt.to_csv(out / "l3_summary_bootstrap.csv", index=False)
+    sc.to_csv(out / f"{args.tag}_summary_scores.csv", index=False)
+    bt.to_csv(out / f"{args.tag}_summary_bootstrap.csv", index=False)
 
     pd.set_option("display.width", 220)
     for sp in sc.split.unique():
@@ -105,7 +112,7 @@ def main() -> int:
         b["dMAE [95%]"] = b.apply(lambda r: f"{r.d_mae:+.2f} [{r.d_mae_lo:+.2f}, {r.d_mae_hi:+.2f}]", axis=1)
         b["dCC [95%]"] = b.apply(lambda r: f"{r.d_corr:+.3f} [{r.d_corr_lo:+.3f}, {r.d_corr_hi:+.3f}]", axis=1)
         print(b[["arm", "L", "comparison"] + (["ref_L"] if "ref_L" in b else []) + ["dMAE [95%]", "dCC [95%]"]].to_string(index=False))
-    print(f"\nwrote {out}/l3_summary_scores.csv, l3_summary_bootstrap.csv")
+    print(f"\nwrote {out}/{args.tag}_summary_scores.csv, {args.tag}_summary_bootstrap.csv")
     return 0
 
 
