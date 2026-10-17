@@ -9,6 +9,7 @@ l3_summary_bootstrap.csv from lead1_l3_summary.py) and the frame cache, and writ
 * ``l3_case_<YYYYMMDD>.png`` — observed daily Ap and the W42 / W41 / no-image forecasts over a test window.
 * ``l3_lasco_input.png`` — one day of LASCO C2 as W41 saw it (raw, 4 slots) and as W42 sees it (RD, 12 slots).
 * ``arch_lead1_fusion_l3.png`` — the l3 model, boxes and arrows.
+* ``l4_length_curve.png`` — arm B without AIA / HMI (l4) next to l3, W41 and no images (when l4 has run).
 
     python scripts/plot_lead1_l3_figures.py [--arms B] [--case-L 1] [--input-day 2024-05-08]
 """
@@ -70,6 +71,35 @@ def length_curve(d: Path, out: Path, arms):
     fig.suptitle(f"Daily Ap one day ahead, split A (test 2022–2025, {len(y):,} days), seed-mean of 3", fontsize=10)
     fig.tight_layout()
     fig.savefig(out / "l3_length_curve.png", dpi=150); plt.close(fig)
+
+
+def l4_curve(d: Path, out: Path):
+    """Arm B, split A: without AIA / HMI (l4) next to with them (l3), W41 and no images; MAE and CC against L."""
+    l1 = np.load(d / "l1_preds_A.npz", allow_pickle=True)
+    l1d = pd.DatetimeIndex(l1["dates"])
+    rows = {"l4": [], "l3": [], "l2": [], "none": []}
+    for L in LENGTHS:
+        dates, y, p4 = seed_mean(d, "l4", "A", "B", L)
+        preds = {"l4": p4, "none": l1[f"B_cnn_L{L}"][l1d.get_indexer(dates)]}
+        for tag in ("l3", "l2"):
+            dd, _, p = seed_mean(d, tag, "A", "B", L)
+            preds[tag] = p[dd.get_indexer(dates)]
+        for k, p in preds.items():
+            rows[k].append((np.abs(y - p).mean(), np.corrcoef(y, p)[0, 1]))
+    style = {"l4": ("-o", "#9467bd", "LASCO RD only (no AIA / HMI)"), "l3": ("-s", "#2ca02c", "W42: AIA / HMI + LASCO RD"),
+             "l2": ("--^", "orange", "W41: AIA / HMI + LASCO raw"), "none": (":s", "grey", "no images")}
+    fig, axes = plt.subplots(1, 2, figsize=(10, 3.8))
+    for k, (fmt, c, label) in style.items():
+        v = np.array(rows[k])
+        for j, ax in enumerate(axes):
+            ax.plot(LENGTHS, v[:, j], fmt, color=c, mfc="white" if k != "l4" else c, label=label)
+    axes[0].set_ylabel("MAE (Ap) — lower is better"); axes[1].set_ylabel("CC — higher is better")
+    for ax in axes:
+        ax.set_xlabel("input length L (days)"); ax.set_xticks(LENGTHS); ax.grid(alpha=0.3)
+    axes[0].legend(fontsize=7.5, loc="upper left")
+    fig.suptitle(f"Arm B (Ap + X-ray + images), split A ({len(y):,} test days), seed-mean of 3", fontsize=10)
+    fig.tight_layout()
+    fig.savefig(out / "l4_length_curve.png", dpi=150); plt.close(fig)
 
 
 def vs_w41(d: Path, out: Path, arms):
@@ -192,6 +222,8 @@ def main() -> int:
     d = data / "lead1"
     args.out.mkdir(parents=True, exist_ok=True)
     length_curve(d, args.out, args.arms)
+    if seed_mean(d, "l4", "A", "B", LENGTHS[-1]) is not None:
+        l4_curve(d, args.out)
     vs_w41(d, args.out, args.arms)
     for c in args.cases:
         case(d, args.out, *c.split(":"), args.case_arm, args.case_L)
