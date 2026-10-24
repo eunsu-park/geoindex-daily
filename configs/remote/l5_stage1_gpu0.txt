@@ -1,0 +1,30 @@
+# <tag> <split> <L> <channels...>; seeds 0 1 2, arm B (Ap + X-ray). IDs as in the work order of 2026-10-23.
+# stage 1 (A1-A4, A11-A14), split A, half 0
+l5-a01 A 1 hmi_m45
+l5-a03 A 1 aia211
+l5-a11 A 1 aia193 aia211 hmi_m45
+l5-a13 A 1 aia211 hmi_m45 lasco_c2
+l5-a01 A 2 hmi_m45
+l5-a03 A 2 aia211
+l5-a11 A 2 aia193 aia211 hmi_m45
+l5-a13 A 2 aia211 hmi_m45 lasco_c2
+l5-a01 A 3 hmi_m45
+l5-a03 A 3 aia211
+l5-a11 A 3 aia193 aia211 hmi_m45
+l5-a13 A 3 aia211 hmi_m45 lasco_c2
+l5-a01 A 4 hmi_m45
+l5-a03 A 4 aia211
+l5-a11 A 4 aia193 aia211 hmi_m45
+l5-a13 A 4 aia211 hmi_m45 lasco_c2
+l5-a01 A 5 hmi_m45
+l5-a03 A 5 aia211
+l5-a11 A 5 aia193 aia211 hmi_m45
+l5-a13 A 5 aia211 hmi_m45 lasco_c2
+l5-a01 A 6 hmi_m45
+l5-a03 A 6 aia211
+l5-a11 A 6 aia193 aia211 hmi_m45
+l5-a13 A 6 aia211 hmi_m45 lasco_c2
+l5-a01 A 7 hmi_m45
+l5-a03 A 7 aia211
+l5-a11 A 7 aia193 aia211 hmi_m45
+l5-a13 A 7 aia211 hmi_m45 lasco_c2
