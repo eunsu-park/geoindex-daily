@@ -86,7 +86,8 @@ def main() -> int:
 
     # ---- samples: one issue-day set for everything --------------------------------------
     df = load_daily_features(data / cfg["data_file"])
-    all_cols = sorted({c for a in arms for c in cfg["features"][a]})
+    # every feature of the config, not only the arms run, so a subset of arms keeps the same issue days
+    all_cols = sorted({c for a in cfg["features"] for c in cfg["features"][a]})
     df = ffill_features(df, all_cols, cfg["ffill_days"])
     df["ap_t"] = tf(df["ap"])                       # the transformed target / input
     slots = load_slot_table(data / cfg["slot_file"])

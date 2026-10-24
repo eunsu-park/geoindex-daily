@@ -27,6 +27,7 @@ features:
   B: [ap, xray_mean_log, xray_max_log]                           # + GOES XRS-B daily mean / max (log10)
   C: [ap, sw_v, sw_np, sw_bt, sw_bz_mean, sw_bz_min]             # + OMNI daily solar wind
   E: [ap, xray_mean_log, xray_max_log, sw_v, sw_np, sw_bt, sw_bz_mean, sw_bz_min]
+  X: [xray_mean_log, xray_max_log]                               # X-ray only, no Ap (work order 2026-10-23, B1)
 
 # Splits by issue date. A = the vault contract (test at the cycle-25 maximum);
 # B = one year per cycle phase, the sensitivity split.

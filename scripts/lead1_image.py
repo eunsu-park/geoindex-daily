@@ -68,6 +68,7 @@ def main() -> int:
     p.add_argument("--device", default=None)
     p.add_argument("--no-amp", action="store_true")
     p.add_argument("--tag", default=None, help="output prefix (default l2, or l3 with --lasco12)")
+    p.add_argument("--out-dir", default=None, help="outputs here instead of $GEOINDEX_DAILY_DATA/lead1 (remote jobs)")
     p.add_argument("--grad-checkpoint", action="store_true", help="recompute image activations in backward (memory)")
     p.add_argument("--lasco12", action="store_true", help="W42: LASCO running difference at 12 slots/day, own branch")
     p.add_argument("--no-sdo", action="store_true", help="with --lasco12: no AIA / HMI branch (l4)")
@@ -78,7 +79,7 @@ def main() -> int:
     cfg = yaml.safe_load(Path(args.config).read_text())
     icfg = cfg.get("image_model", {})
     data = default_data_dir()
-    out = data / cfg["out_dir"]
+    out = Path(args.out_dir) if args.out_dir else data / cfg["out_dir"]
     (out / "ckpt").mkdir(parents=True, exist_ok=True)
     cache_dir = data / "frames1024"
     lcfg = cfg["lasco12"] if args.lasco12 else None
@@ -122,7 +123,7 @@ def main() -> int:
     print(f"arm {args.arm} split {args.split} channels {channels} slots {slot_hours} device {device} amp {use_amp}; "
           f"{len(days)} issue days")
 
-    l1 = out / f"l1_preds_{args.split}.npz"
+    l1 = data / cfg["out_dir"] / f"l1_preds_{args.split}.npz"
     ref = np.load(l1, allow_pickle=True) if l1.exists() else None
 
     for L in lengths:
