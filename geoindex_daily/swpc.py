@@ -29,6 +29,8 @@ import pandas as pd
 NCEI = "https://www.ngdc.noaa.gov/stp/space-weather/swpc-products"
 URL_45DAY_JSON = NCEI + "/daily_reports/45_day_forecast/{y:04d}/{m:02d}/45_day_forecast_{y:04d}{m:02d}{d:02d}.json"
 URL_45DAY_TXT = "https://services.swpc.noaa.gov/text/45-day-forecast.txt"
+# Report of Solar-Geophysical Activity: daily, 22:00 UTC, 1966-; carries the 3-day "Predicted Afr/Ap"
+URL_RSGA = NCEI + "/daily_reports/reports_solar_geophysical_activity/{y:04d}/{m:02d}/{y:04d}{m:02d}{d:02d}RSGA.txt"
 PRF_TABLE = "swpc_prf_outlook"
 
 
@@ -88,3 +90,53 @@ def parse_45day_txt(text: str) -> pd.DataFrame:
             target[pd.Timestamp(pd.to_datetime(d, format="%d%b%y"))] = float(v)
     rows = [{"target_date": t, "ap": ap.get(t), "f107": f107.get(t)} for t in sorted(set(ap) | set(f107))]
     return _long(issue, rows)
+
+
+# --- RSGA (Report of Solar-Geophysical Activity) -------------------------------------------
+
+_RSGA_PRED = re.compile(r"Predicted Afr/Ap\s+(\d{2} \w{3})-(\d{2} \w{3})\s+(.+)")
+_RSGA_ONE = re.compile(r"(Observed|Estimated) Afr/Ap\s+(\d{2} \w{3})\s+(\S+)/\s*(\S+)")
+
+
+def _num(v: str) -> float | None:
+    """A number, or None for 'NA', 'Missing', '0NA', 'N60' and other non-numeric entries."""
+    try:
+        return float(v.strip())
+    except ValueError:
+        return None
+
+
+def parse_rsga(text: str) -> pd.DataFrame:
+    """One RSGA issuance → long table: issue_date, issue_time, target_date, lead, kind, afr, ap.
+
+    kind is 'predicted' (leads 1-3), 'estimated' (the issue day, lead 0) or 'observed' (the day
+    before, lead -1). Missing values ('NA') become None. Dates in the report carry no year; it is
+    taken from the issue date, rolling over at the turn of the year.
+    """
+    m = re.search(r":Issued:\s*(\d{4} \w{3} \d{2}) (\d{4}) UTC", text)
+    issue = pd.Timestamp(m.group(1))
+
+    def day(dm: str) -> pd.Timestamp:
+        t = pd.Timestamp(f"{dm} {issue.year}")
+        if (t - issue).days > 180:          # e.g. 31 Dec observed in a January report
+            t = t - pd.DateOffset(years=1)
+        elif (issue - t).days > 180:        # e.g. 01 Jan predicted in a December report
+            t = t + pd.DateOffset(years=1)
+        return t
+
+    rows = []
+    for kind, dm, afr, ap in _RSGA_ONE.findall(text):
+        rows.append({"target_date": day(dm), "kind": kind.lower(), "afr": _num(afr), "ap": _num(ap)})
+    p = _RSGA_PRED.search(text)
+    if p:
+        start = day(p.group(1))
+        for k, pair in enumerate(p.group(3).split("-")):
+            afr, _, ap = pair.partition("/")
+            rows.append({"target_date": start + pd.Timedelta(days=k), "kind": "predicted",
+                         "afr": _num(afr), "ap": _num(ap)})
+    cols = ["issue_date", "issue_time", "target_date", "lead", "kind", "afr", "ap"]
+    if not rows:                            # truncated report without the Afr/Ap lines
+        return pd.DataFrame(columns=cols)
+    df = _long(issue, rows)
+    df.insert(1, "issue_time", m.group(2))
+    return df[cols]
