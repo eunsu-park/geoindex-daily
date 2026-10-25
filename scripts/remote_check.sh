@@ -11,11 +11,11 @@ tail -1 "$OUT/job.log" | grep -q "^== done" && echo "done line: yes" || { echo "
 n=$(grep -c "^!!!" "$OUT/job.log"); echo "failure lines: $n"; [ "$n" -eq 0 ] || { grep "^!!!" "$OUT/job.log"; ok=0; }
 (cd "$OUT" && sha256sum -c --quiet SHA256SUMS) && echo "checksums: ok" || { echo "checksums: FAILED"; ok=0; }
 miss=0
-while read -r TAG SPLIT L CH; do
+while read -r TAG SPLIT L ARGS; do
   [[ -z "$TAG" || "$TAG" == \#* ]] && continue
   for s in 0 1 2; do
-    f="$OUT/${TAG}_preds_${SPLIT}_B_L${L}_s${s}.npz"
-    [ -s "$f" ] || { echo "missing: $(basename "$f")"; miss=$((miss + 1)); }
+    f=$(ls "$OUT/${TAG}_preds_${SPLIT}_"*"_L${L}_s${s}.npz" 2>/dev/null | head -1)
+    [ -n "$f" ] && [ -s "$f" ] || { echo "missing: ${TAG}_preds_${SPLIT}_*_L${L}_s${s}.npz"; miss=$((miss + 1)); }
   done
 done < "$OUT/runlist.txt"
 echo "missing prediction files: $miss"; [ "$miss" -eq 0 ] || ok=0

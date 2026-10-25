@@ -1,3 +1,3 @@
-# <tag> <split> <L> <channels...>; seeds 0 1 2, arm B (Ap + X-ray). IDs as in the work order of 2026-10-23.
+# <tag> <split> <L> <lead1_image.py arguments>; seeds 0 1 2. IDs as in the work order of 2026-10-23.
 # A15 (all four channels) at L = 4 = W41 arm B L = 4; reproduces before any other job
-l5-a15 A 4 aia193 aia211 hmi_m45 lasco_c2
+l5-a15raw A 4 --arm B --channels aia193 aia211 hmi_m45 lasco_c2
