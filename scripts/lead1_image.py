@@ -72,6 +72,7 @@ def main() -> int:
     p.add_argument("--grad-checkpoint", action="store_true", help="recompute image activations in backward (memory)")
     p.add_argument("--lasco12", action="store_true", help="W42: LASCO running difference at 12 slots/day, own branch")
     p.add_argument("--no-sdo", action="store_true", help="with --lasco12: no AIA / HMI branch (l4)")
+    p.add_argument("--lasco-cfg", default="lasco12", help="config section for --lasco12 (lasco12f: slots filled)")
     args = p.parse_args()
     assert args.lasco12 or not args.no_sdo, "--no-sdo needs --lasco12"
     args.tag = args.tag or ("l4" if args.no_sdo else "l3" if args.lasco12 else "l2")
@@ -82,7 +83,7 @@ def main() -> int:
     out = Path(args.out_dir) if args.out_dir else data / cfg["out_dir"]
     (out / "ckpt").mkdir(parents=True, exist_ok=True)
     cache_dir = data / "frames1024"
-    lcfg = cfg["lasco12"] if args.lasco12 else None
+    lcfg = cfg[args.lasco_cfg] if args.lasco12 else None
     channels = () if args.no_sdo else tuple(args.channels or (lcfg["sdo_channels"] if lcfg else
                                        icfg.get("channels", ["aia193", "aia211", "hmi_m45", "lasco_c2"])))
     slot_hours = tuple(args.slots or cfg["slot_hours"])

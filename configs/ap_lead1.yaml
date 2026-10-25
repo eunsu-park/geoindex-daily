@@ -76,3 +76,9 @@ lasco12:                      # W42 (scripts/lead1_image.py --lasco12): LASCO C2
   slot_hours: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]
   channel: lasco_c2_rd12                     # cache channel, built with --rd-only --rd-channel lasco_c2_rd12
   sdo_channels: [aia193, aia211, hmi_m45]   # stay at slot_hours (four a day)
+lasco12f:                     # l5 (work order 2026-10-23 + co-authors' Q4): lasco12 with missing slots filled
+  slot_file: slot_table_lasco12f.parquet    # scripts/fill_lasco12.py: own frame, nearest slot <= 24 h, or "no change"
+  prev_file: lasco_c2_prev12f.parquet
+  slot_hours: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]
+  channel: lasco_c2_rd12f
+  sdo_channels: [aia193, aia211, hmi_m45]
