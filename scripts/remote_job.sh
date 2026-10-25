@@ -36,7 +36,9 @@ cp "$LIST" "$OUT/runlist.txt"
 echo "$(date -u +%FT%TZ) checking pack checksums" >> "$LOG"
 (cd "$PACK" && sha256sum -c --quiet SHA256SUMS) >> "$LOG" 2>&1 || { echo "!!! pack checksum failed: re-run the pack rsync" >> "$LOG"; exit 1; }
 echo "$(date -u +%FT%TZ) CPU self-test" >> "$LOG"
-CUDA_VISIBLE_DEVICES="" python -m pytest -q "$REPO/tests" >> "$LOG" 2>&1 || { echo "!!! self-test failed" >> "$LOG"; exit 1; }
+# from the repo root: `python -m pytest` puts the current directory on the import path, and the job may
+# start anywhere (found on the server 2026-10-25, where it started in ~)
+(cd "$REPO" && CUDA_VISIBLE_DEVICES="" python -m pytest -q tests) >> "$LOG" 2>&1 || { echo "!!! self-test failed" >> "$LOG"; exit 1; }
 
 export GEOINDEX_DAILY_DATA=$PACK NUMPY_MADVISE_HUGEPAGE=0 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
        CUDA_VISIBLE_DEVICES=$GPU
