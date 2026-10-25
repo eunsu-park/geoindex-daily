@@ -19,5 +19,8 @@ while read -r TAG SPLIT L ARGS; do
   done
 done < "$OUT/runlist.txt"
 echo "missing prediction files: $miss"; [ "$miss" -eq 0 ] || ok=0
-grep -E "^(commit|dirty|gpu|python)" "$OUT/env.txt"
+grep -E "^(== start|commit|dirty|gpu|extra|python)" "$OUT/env.txt"
+nc=$(grep "^commit" "$OUT/env.txt" | sort -u | wc -l); [ "$nc" -eq 1 ] || { echo "!!! starts used $nc different commits"; ok=0; }
+grep "^dirty" "$OUT/env.txt" | grep -qv "dirty     0 " && { echo "!!! a start had uncommitted changes"; ok=0; }
+grep "^extra" "$OUT/env.txt" | grep -qv "none" && { echo "!!! a start used GEOINDEX_EXTRA_ARGS (smoke settings?)"; ok=0; }
 [ "$ok" -eq 1 ] && echo "== PASS" || { echo "== FAIL"; exit 1; }
