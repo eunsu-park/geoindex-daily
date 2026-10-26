@@ -5,7 +5,7 @@
 #
 #   bash ~/GitHub/geoindex/geoindex-daily/scripts/remote_job.sh <pack> <out> <runlist> <gpu> [cores]
 #   e.g. nohup bash ~/GitHub/geoindex/geoindex-daily/scripts/remote_job.sh ~/geoindex-packs/lead1-w41 \
-#            ~/l5-full-gpu0 ~/GitHub/geoindex/geoindex-daily/configs/remote/l5_full_gpu0.txt 0 0-7,32-39 \
+#            ~/l5-full-gpu0 ~/GitHub/geoindex/geoindex-daily/configs/remote/l5_full_gpu0.txt 2 16-23,48-55 \
 #            > ~/l5-full-gpu0.log 2>&1 &
 #
 # <runlist>: one run group per line, "<tag> <split> <L> <lead1_image.py arguments ...>" (e.g. --arm B
