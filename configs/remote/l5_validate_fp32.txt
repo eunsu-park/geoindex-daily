@@ -1,0 +1,4 @@
+# <tag> <split> <L> <lead1_image.py arguments>; seeds 0 1 2.
+# l5_validate without mixed precision: the server missed the bf16/fp16 run by +0.39 MAE against this
+# device's rerun (2026-10-26); the same run in fp32 on both tells whether autocast is the cause
+l5-a15raw-fp32 A 4 --arm B --channels aia193 aia211 hmi_m45 lasco_c2 --no-amp
