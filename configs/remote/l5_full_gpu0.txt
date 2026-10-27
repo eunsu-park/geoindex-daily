@@ -1,59 +1,60 @@
 # <tag> <split> <L> <lead1_image.py arguments>; seeds 0 1 2. Work order 2026-10-23 A1-A15 + image-only (a16img),
 # LASCO = running difference 12/day with missing slots filled (lasco12f), co-authors' answers of 2026-10-25.
+# fp32 (--no-amp): the server matched this device in fp32 (dMAE +0.06 [-0.01, +0.12]) but not in fp16 (2026-10-26/27).
 # half 0, relative load 325
-l5-a16img A 7 --arm I --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 hmi_m45
-l5-a14 A 7 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211
-l5-a12 A 7 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 hmi_m45
-l5-a09 A 7 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193
-l5-a16img A 6 --arm I --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 hmi_m45
-l5-a14 A 6 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211
-l5-a12 A 6 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 hmi_m45
-l5-a09 A 6 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193
-l5-a16img A 5 --arm I --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 hmi_m45
-l5-a14 A 5 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211
-l5-a12 A 5 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 hmi_m45
-l5-a09 A 5 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193
-l5-a16img A 4 --arm I --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 hmi_m45
-l5-a14 A 4 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211
-l5-a12 A 4 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 hmi_m45
-l5-a09 A 4 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193
-l5-a11 A 7 --arm B --channels aia193 aia211 hmi_m45
-l5-a06 A 7 --arm B --channels aia211 hmi_m45
-l5-a04 A 7 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --no-sdo
-l5-a02 A 7 --arm B --channels aia193
-l5-a11 A 6 --arm B --channels aia193 aia211 hmi_m45
-l5-a06 A 6 --arm B --channels aia211 hmi_m45
-l5-a04 A 6 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --no-sdo
-l5-a02 A 6 --arm B --channels aia193
-l5-a16img A 3 --arm I --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 hmi_m45
-l5-a14 A 3 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211
-l5-a12 A 3 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 hmi_m45
-l5-a09 A 3 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193
-l5-a11 A 5 --arm B --channels aia193 aia211 hmi_m45
-l5-a06 A 5 --arm B --channels aia211 hmi_m45
-l5-a04 A 5 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --no-sdo
-l5-a02 A 5 --arm B --channels aia193
-l5-a11 A 4 --arm B --channels aia193 aia211 hmi_m45
-l5-a06 A 4 --arm B --channels aia211 hmi_m45
-l5-a04 A 4 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --no-sdo
-l5-a02 A 4 --arm B --channels aia193
-l5-a16img A 2 --arm I --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 hmi_m45
-l5-a14 A 2 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211
-l5-a12 A 2 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 hmi_m45
-l5-a09 A 2 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193
-l5-a11 A 3 --arm B --channels aia193 aia211 hmi_m45
-l5-a06 A 3 --arm B --channels aia211 hmi_m45
-l5-a04 A 3 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --no-sdo
-l5-a02 A 3 --arm B --channels aia193
-l5-a11 A 2 --arm B --channels aia193 aia211 hmi_m45
-l5-a06 A 2 --arm B --channels aia211 hmi_m45
-l5-a04 A 2 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --no-sdo
-l5-a02 A 2 --arm B --channels aia193
-l5-a16img A 1 --arm I --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 hmi_m45
-l5-a14 A 1 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211
-l5-a12 A 1 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 hmi_m45
-l5-a09 A 1 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193
-l5-a11 A 1 --arm B --channels aia193 aia211 hmi_m45
-l5-a06 A 1 --arm B --channels aia211 hmi_m45
-l5-a04 A 1 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --no-sdo
-l5-a02 A 1 --arm B --channels aia193
+l5-a16img A 7 --arm I --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 hmi_m45 --no-amp
+l5-a14 A 7 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 --no-amp
+l5-a12 A 7 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 hmi_m45 --no-amp
+l5-a09 A 7 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 --no-amp
+l5-a16img A 6 --arm I --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 hmi_m45 --no-amp
+l5-a14 A 6 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 --no-amp
+l5-a12 A 6 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 hmi_m45 --no-amp
+l5-a09 A 6 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 --no-amp
+l5-a16img A 5 --arm I --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 hmi_m45 --no-amp
+l5-a14 A 5 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 --no-amp
+l5-a12 A 5 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 hmi_m45 --no-amp
+l5-a09 A 5 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 --no-amp
+l5-a16img A 4 --arm I --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 hmi_m45 --no-amp
+l5-a14 A 4 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 --no-amp
+l5-a12 A 4 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 hmi_m45 --no-amp
+l5-a09 A 4 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 --no-amp
+l5-a11 A 7 --arm B --channels aia193 aia211 hmi_m45 --no-amp
+l5-a06 A 7 --arm B --channels aia211 hmi_m45 --no-amp
+l5-a04 A 7 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --no-sdo --no-amp
+l5-a02 A 7 --arm B --channels aia193 --no-amp
+l5-a11 A 6 --arm B --channels aia193 aia211 hmi_m45 --no-amp
+l5-a06 A 6 --arm B --channels aia211 hmi_m45 --no-amp
+l5-a04 A 6 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --no-sdo --no-amp
+l5-a02 A 6 --arm B --channels aia193 --no-amp
+l5-a16img A 3 --arm I --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 hmi_m45 --no-amp
+l5-a14 A 3 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 --no-amp
+l5-a12 A 3 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 hmi_m45 --no-amp
+l5-a09 A 3 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 --no-amp
+l5-a11 A 5 --arm B --channels aia193 aia211 hmi_m45 --no-amp
+l5-a06 A 5 --arm B --channels aia211 hmi_m45 --no-amp
+l5-a04 A 5 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --no-sdo --no-amp
+l5-a02 A 5 --arm B --channels aia193 --no-amp
+l5-a11 A 4 --arm B --channels aia193 aia211 hmi_m45 --no-amp
+l5-a06 A 4 --arm B --channels aia211 hmi_m45 --no-amp
+l5-a04 A 4 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --no-sdo --no-amp
+l5-a02 A 4 --arm B --channels aia193 --no-amp
+l5-a16img A 2 --arm I --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 hmi_m45 --no-amp
+l5-a14 A 2 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 --no-amp
+l5-a12 A 2 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 hmi_m45 --no-amp
+l5-a09 A 2 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 --no-amp
+l5-a11 A 3 --arm B --channels aia193 aia211 hmi_m45 --no-amp
+l5-a06 A 3 --arm B --channels aia211 hmi_m45 --no-amp
+l5-a04 A 3 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --no-sdo --no-amp
+l5-a02 A 3 --arm B --channels aia193 --no-amp
+l5-a11 A 2 --arm B --channels aia193 aia211 hmi_m45 --no-amp
+l5-a06 A 2 --arm B --channels aia211 hmi_m45 --no-amp
+l5-a04 A 2 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --no-sdo --no-amp
+l5-a02 A 2 --arm B --channels aia193 --no-amp
+l5-a16img A 1 --arm I --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 hmi_m45 --no-amp
+l5-a14 A 1 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 --no-amp
+l5-a12 A 1 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 hmi_m45 --no-amp
+l5-a09 A 1 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 --no-amp
+l5-a11 A 1 --arm B --channels aia193 aia211 hmi_m45 --no-amp
+l5-a06 A 1 --arm B --channels aia211 hmi_m45 --no-amp
+l5-a04 A 1 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --no-sdo --no-amp
+l5-a02 A 1 --arm B --channels aia193 --no-amp

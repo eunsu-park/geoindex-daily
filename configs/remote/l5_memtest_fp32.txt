@@ -1,0 +1,5 @@
+# <tag> <split> <L> <lead1_image.py arguments>; seeds 0 1 2. GPU-memory check before l5_full in fp32: the two
+# heaviest lines (LASCO RD 12/day + three SDO channels, L = 7). Run with GEOINDEX_EXTRA_ARGS="--limit 64 --epochs 1";
+# in fp32 these ran out of memory on this device's 24 GB card (2026-10-27), the server's cards have 32 GB.
+l5-a15 A 7 --arm B --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 hmi_m45 --no-amp
+l5-a16img A 7 --arm I --lasco12 --lasco-cfg lasco12f --grad-checkpoint --channels aia193 aia211 hmi_m45 --no-amp
