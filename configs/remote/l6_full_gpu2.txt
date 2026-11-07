@@ -1,0 +1,7 @@
+# <tag> <split> <L> <arguments>; seeds 0 1 2. Phase l6: full-input model on all issue days (l6) and on CME days
+# (l6cme, DONKI Earth-directed CME in the 72 h before issue), fp16, gradient checkpointing. Split across GPU 2 / 3
+# by L × training days (CME subset ≈ 0.28 of all days); heaviest first.
+l6 A 7 --script ap3h_train.py --model full --grad-checkpoint
+l6 A 6 --script ap3h_train.py --model full --grad-checkpoint
+l6 A 4 --script ap3h_train.py --model full --grad-checkpoint
+l6cme A 3 --script ap3h_train.py --model full --subset cme --grad-checkpoint

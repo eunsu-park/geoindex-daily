@@ -1,0 +1,11 @@
+# <tag> <split> <L> <arguments>; seeds 0 1 2. Phase l6: see l6_full_gpu2.txt.
+l6 A 5 --script ap3h_train.py --model full --grad-checkpoint
+l6cme A 7 --script ap3h_train.py --model full --subset cme --grad-checkpoint
+l6cme A 6 --script ap3h_train.py --model full --subset cme --grad-checkpoint
+l6 A 3 --script ap3h_train.py --model full --grad-checkpoint
+l6cme A 5 --script ap3h_train.py --model full --subset cme --grad-checkpoint
+l6cme A 4 --script ap3h_train.py --model full --subset cme --grad-checkpoint
+l6 A 2 --script ap3h_train.py --model full --grad-checkpoint
+l6cme A 2 --script ap3h_train.py --model full --subset cme --grad-checkpoint
+l6 A 1 --script ap3h_train.py --model full --grad-checkpoint
+l6cme A 1 --script ap3h_train.py --model full --subset cme --grad-checkpoint

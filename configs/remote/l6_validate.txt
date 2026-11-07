@@ -1,0 +1,4 @@
+# <tag> <split> <L> <arguments>; seeds 0 1 2. Phase l6 (vault planning/ap3h-plan.md): the full-input 3-hour ap
+# model at L = 1 in fp16, run on this device and on the server; pass if the paired interval of the daily-Ap
+# MAE difference of the seed-mean forecasts contains zero.
+l6val A 1 --script ap3h_train.py --model full --grad-checkpoint
