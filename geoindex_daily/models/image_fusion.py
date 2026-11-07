@@ -86,13 +86,13 @@ class ImageFusion(nn.Module):
 
     def __init__(self, n_channels: int = 4, ts_features: int = 1, widths=(32, 64, 128, 256),
                  ts_width: int = 32, hidden: int = 128, dropout: float = 0.2, lasco_channels: int = 0,
-                 grad_checkpoint: bool = False, out_dim: int = 1):
+                 grad_checkpoint: bool = False, out_dim: int = 1, ts_pool: str = "avg"):
         super().__init__()
         self.image = ImageBranch(n_channels, widths, grad_checkpoint=grad_checkpoint) if n_channels > 0 else None
         self.lasco = (ImageBranch(lasco_channels, widths, grad_checkpoint=grad_checkpoint)
                       if lasco_channels > 0 else None)
-        self.ts = TSCNN(ts_features, ts_width) if ts_features > 0 else None
-        d = sum(b.embed_dim for b in (self.image, self.lasco) if b is not None) + (ts_width if ts_features > 0 else 0)
+        self.ts = TSCNN(ts_features, ts_width, pool=ts_pool) if ts_features > 0 else None
+        d = sum(b.embed_dim for b in (self.image, self.lasco) if b is not None) + (self.ts.embed_dim if self.ts is not None else 0)
         self.head = nn.Sequential(nn.Dropout(dropout), nn.Linear(d, hidden), nn.GELU(),
                                   nn.Dropout(dropout), nn.Linear(hidden, out_dim))
 

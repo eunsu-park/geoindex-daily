@@ -12,19 +12,23 @@ from torch import nn
 
 class TSCNN(nn.Module):
     def __init__(self, n_features: int, width: int = 32, kernel: int = 3, dropout: float = 0.1,
-                 out_dim: int = 1):
+                 out_dim: int = 1, pool: str = "avg"):
         super().__init__()
         pad = kernel // 2
-        self.net = nn.Sequential(
+        self.net = nn.Sequential(                     # same parameter names as before (net.0, net.2)
             nn.Conv1d(n_features, width, kernel, padding=pad), nn.GELU(),
             nn.Conv1d(width, width, kernel, padding=pad), nn.GELU(),
-            nn.AdaptiveAvgPool1d(1), nn.Flatten(), nn.Dropout(dropout),
         )
-        self.head = nn.Linear(width, out_dim)
-        self.embed_dim = width
+        # "avg": global average over the window; "avg_last": also the last step's channels, so a long window
+        # (56 three-hour steps in l6) does not dilute the most recent values
+        self.pool, self.drop = pool, nn.Dropout(dropout)
+        self.embed_dim = width * (2 if pool == "avg_last" else 1)
+        self.head = nn.Linear(self.embed_dim, out_dim)
 
     def features(self, x: torch.Tensor) -> torch.Tensor:  # x: (N, L, F)
-        return self.net(x.transpose(1, 2))
+        h = self.net(x.transpose(1, 2))
+        z = h.mean(-1) if self.pool == "avg" else torch.cat([h.mean(-1), h[..., -1]], dim=1)
+        return self.drop(z)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.head(self.features(x)).squeeze(-1)

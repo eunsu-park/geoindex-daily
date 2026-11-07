@@ -32,3 +32,14 @@ def test_nll_is_smaller_for_the_right_mean_and_scores_average_eight_bins():
     yy = np.full((2, 8), 3.0)
     s = scores(np.c_[yy[:, :4] * 0, yy[:, 4:] * 2], np.log1p(np.full((2, 8), 3.0)), np.full((2, 8), 0.1))
     assert np.isclose(s["mae_day"], 0.0) and np.isclose(s["mae_3h"], 3.0)
+
+
+def test_avg_last_pool_keeps_the_last_step():
+    from geoindex_daily.models.ts_cnn import TSCNN
+    torch.manual_seed(0)
+    m = TSCNN(3, width=8, pool="avg_last").eval()
+    assert m.embed_dim == 16
+    x = torch.zeros(1, 56, 3)
+    x2 = x.clone(); x2[0, -1] = 5.0
+    a, b = m.features(x), m.features(x2)
+    assert (a[0, 8:] - b[0, 8:]).abs().sum() > (a[0, :8] - b[0, :8]).abs().sum()   # last-step half moves more

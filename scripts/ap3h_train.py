@@ -89,6 +89,10 @@ def main() -> int:
     p.add_argument("--device", default=None)
     p.add_argument("--no-amp", action="store_true")
     p.add_argument("--grad-checkpoint", action="store_true")
+    p.add_argument("--ts-pool", choices=["avg", "avg_last"], default="avg_last",
+                   help="time-series branch pooling: avg_last (default) adds the last 3-hour step to the average; "
+                        "avg alone dilutes the recent steps of a long window (l6-ts, 2026-11-07: daily-Ap CC "
+                        "0.51 at L = 1 → 0.30 at L = 7)")
     p.add_argument("--tag", default="l6")
     p.add_argument("--out-dir", default=None)
     args = p.parse_args()
@@ -164,7 +168,8 @@ def main() -> int:
             model = ImageFusion(len(channels), len(TS_COLS), widths=tuple(icfg["widths"]),
                                 ts_width=cfg["ts_cnn"]["width"], hidden=icfg["hidden"], dropout=icfg["dropout"],
                                 lasco_channels=1 if args.model == "full" else 0,
-                                grad_checkpoint=args.grad_checkpoint, out_dim=2 * H).to(device)
+                                grad_checkpoint=args.grad_checkpoint, out_dim=2 * H,
+                                ts_pool=args.ts_pool).to(device)
             opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=icfg["weight_decay"])
             scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
             tag = f"{args.split}_{args.model}_{args.subset}_L{L}_s{seed}"
