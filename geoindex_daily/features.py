@@ -93,3 +93,62 @@ def load_daily_features(path: Path) -> pd.DataFrame:
     df = pd.read_parquet(path)
     df.index = pd.to_datetime(df.index)
     return df
+
+
+# ---- 3-hour table (phase l6: the next 24 h of 3-hour ap) -----------------------------------
+XRAY3H_SQL = """
+select date_trunc('day', datetime) + floor(extract(hour from datetime) / 3) * interval '3 hour' as time,
+       avg(xrs_b_flux_w_m2) as xray_mean,
+       max(xrs_b_flux_w_m2) as xray_max,
+       count(*)             as n_xray_min
+from goes_xrs
+where coalesce(xrs_b_flag, 0) = 0 and xrs_b_flux_w_m2 > 0
+  and datetime >= %s and datetime < %s
+group by 1 order by 1
+"""
+
+
+def load_3h_xray(conn, start: str, end: str) -> pd.DataFrame:
+    """Columns XRAY_COLUMNS indexed by the 3-hour bin start (00, 03, …, 21 UT); end is exclusive.
+
+    The same selection as `load_daily_xray` (good-flag XRS-B, satellites pooled), binned by 3 hours.
+    """
+    import numpy as np
+    cur = conn.cursor()
+    cur.execute(XRAY3H_SQL, (start, end))
+    df = pd.DataFrame(cur.fetchall(), columns=[d[0] for d in cur.description])
+    df["time"] = pd.to_datetime(df["time"])
+    df = df.set_index("time")
+    out = pd.DataFrame(index=df.index)
+    out["xray_mean_log"] = np.log10(df["xray_mean"].astype(float))
+    out["xray_max_log"] = np.log10(df["xray_max"].astype(float))
+    out["n_xray_min"] = df["n_xray_min"].astype(int)
+    return out
+
+
+def gfz_3h(daily_gfz_text: Path) -> pd.DataFrame:
+    """GFZ `Kp_ap_Ap_SN_F107_since_1932.txt` → one row per 3-hour bin: `ap`, `kp`, `definitive`.
+
+    The file's daily Ap is the mean of these eight ap values rounded half to even.
+    """
+    import numpy as np
+    cols = (["year", "month", "day", "days", "days_m", "bsr", "db"] + [f"kp{i}" for i in range(1, 9)]
+            + [f"ap{i}" for i in range(1, 9)] + ["Ap", "SN", "f107_obs", "f107_adj", "D"])
+    raw = pd.read_csv(daily_gfz_text, sep=r"\s+", comment="#", header=None, names=cols)
+    day = pd.DatetimeIndex(pd.to_datetime(dict(year=raw.year, month=raw.month, day=raw.day))).as_unit("ns")
+    ap = raw[[f"ap{i}" for i in range(1, 9)]].replace(-1, np.nan).astype(float).to_numpy()
+    kp = raw[[f"kp{i}" for i in range(1, 9)]].replace(-1.0, np.nan).to_numpy()
+    time = (day.to_numpy()[:, None] + (np.arange(8) * np.timedelta64(3, "h"))[None, :]).ravel()
+    return pd.DataFrame({"ap": ap.ravel(), "kp": kp.ravel(), "definitive": np.repeat(raw["D"].astype(int).to_numpy(), 8)},
+                        index=pd.DatetimeIndex(time, name="time"))
+
+
+def build_3h_features(gfz_text: Path, conn, out_path: Path, start: str, end: str) -> pd.DataFrame:
+    """3-hour ap (GFZ) joined with 3-hour X-ray on a full 3-hour grid [start, end)."""
+    grid = pd.date_range(start, pd.Timestamp(end) - pd.Timedelta(hours=3), freq="3h", name="time")
+    out = gfz_3h(gfz_text).reindex(grid).join(load_3h_xray(conn, start, end))
+    out["n_xray_min"] = out["n_xray_min"].fillna(0).astype(int)
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out.to_parquet(out_path)
+    return out

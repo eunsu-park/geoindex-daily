@@ -36,3 +36,15 @@ def test_fill_values_masked_and_missing_day_kept_as_nan():
     assert d.n_ap_hours.iloc[1] == 0 and np.isnan(d.ap.iloc[1])
     assert np.isnan(d.f107.iloc[2])         # 999.9 masked
     assert np.isclose(d.f107.iloc[0], 120.5)
+
+
+def test_gfz_3h_unrolls_eight_bins_per_day(tmp_path):
+    from geoindex_daily.features import gfz_3h
+    line = ("2015 01 01 30316.5 30316.5 2475 1  0.333 1.000 1.333 2.000 3.000 1.667 0.667 0.333"
+            "   2   4   5   7  15   6   3   2   6  50  120.5  118.0 1\n")
+    f = tmp_path / "gfz.txt"
+    f.write_text("# header\n" + line)
+    d = gfz_3h(f)
+    assert len(d) == 8 and d.index[1] == pd.Timestamp("2015-01-01 03:00")
+    assert list(d.ap) == [2, 4, 5, 7, 15, 6, 3, 2] and np.isclose(d.kp.iloc[4], 3.0)
+    assert np.round(d.ap.mean()) == 6
