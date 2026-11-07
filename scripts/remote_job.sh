@@ -8,8 +8,9 @@
 #            ~/l5-full-gpu0 ~/GitHub/geoindex/geoindex-daily/configs/remote/l5_full_gpu0.txt 2 16-23,48-55 \
 #            > ~/l5-full-gpu0.log 2>&1 &
 #
-# <runlist>: one run group per line, "<tag> <split> <L> <lead1_image.py arguments ...>" (e.g. --arm B
-# --channels hmi_m45 --lasco12 --lasco-cfg lasco12f --grad-checkpoint), seeds 0 1 2.
+# <runlist>: one run group per line, "<tag> <split> <L> <arguments ...>" (e.g. --arm B --channels hmi_m45
+# --lasco12 --lasco-cfg lasco12f --grad-checkpoint), seeds 0 1 2. The script is lead1_image.py unless the
+# arguments start with "--script <name>" (e.g. --script ap3h_train.py --model full, phase l6).
 # Writes <out>/env.txt (one block per start), job.log, the lead1_image.py outputs and SHA256SUMS, and
 # ends job.log with "== done" — judge or copy a job only after that line. Rerunning the same command
 # resumes: a seed whose prediction file exists is skipped. GEOINDEX_EXTRA_ARGS (env, recorded in env.txt)
@@ -45,6 +46,8 @@ export GEOINDEX_DAILY_DATA=$PACK NUMPY_MADVISE_HUGEPAGE=0 PYTORCH_CUDA_ALLOC_CON
 PIN=(); [ -n "$CORES" ] && PIN=(taskset -c "$CORES")
 while read -r TAG SPLIT L ARGS; do
   [[ -z "$TAG" || "$TAG" == \#* ]] && continue
+  SCRIPT=lead1_image.py
+  if [[ "$ARGS" == --script\ * ]]; then read -r _ SCRIPT ARGS <<< "$ARGS"; fi
   SEEDS=""
   for s in 0 1 2; do
     ls "$OUT/${TAG}_preds_${SPLIT}_"*"_L${L}_s${s}.npz" > /dev/null 2>&1 || SEEDS="$SEEDS $s"
@@ -54,7 +57,7 @@ while read -r TAG SPLIT L ARGS; do
   fi
   echo "$(date -u +%FT%TZ) === $TAG split $SPLIT L=$L seeds$SEEDS $ARGS" >> "$LOG"
   # $ARGS and $SEEDS unquoted on purpose: one word per argument
-  ${PIN[@]+"${PIN[@]}"} python "$REPO/scripts/lead1_image.py" --config "$REPO/configs/ap_lead1.yaml" \
+  ${PIN[@]+"${PIN[@]}"} python "$REPO/scripts/$SCRIPT" --config "$REPO/configs/ap_lead1.yaml" \
       --split "$SPLIT" --lengths "$L" --seeds $SEEDS $ARGS --tag "$TAG" --out-dir "$OUT" \
       --batch 8 --workers 6 ${GEOINDEX_EXTRA_ARGS:-} < /dev/null 2>&1 | grep -vi warning >> "$LOG"   # stdin stays with the run list
   [ "${PIPESTATUS[0]}" -eq 0 ] || echo "!!! $TAG split $SPLIT L=$L failed" >> "$LOG"
