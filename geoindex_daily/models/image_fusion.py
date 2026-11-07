@@ -11,7 +11,7 @@ by a 1-D temporal convolution, each with its own normalisation and activation):
     stage4 (2+1)D block, spatial stride 2    → (N, 256, T, 16, 16)
     global average pool over (T, H, W)       → (N, 256)
 
-Time-series branch: `TSCNN.features` → (N, 32). Head: concat → MLP → 1.
+Time-series branch: `TSCNN.features` → (N, 32). Head: concat → MLP → 1 (or `out_dim` values, e.g. mean and log-variance per 3-hour step in l6).
 
 With `lasco_channels > 0` a second image branch of the same form takes the LASCO frames, which
 come at their own cadence (W42: running difference, twelve frames a day against four for SDO);
@@ -86,7 +86,7 @@ class ImageFusion(nn.Module):
 
     def __init__(self, n_channels: int = 4, ts_features: int = 1, widths=(32, 64, 128, 256),
                  ts_width: int = 32, hidden: int = 128, dropout: float = 0.2, lasco_channels: int = 0,
-                 grad_checkpoint: bool = False):
+                 grad_checkpoint: bool = False, out_dim: int = 1):
         super().__init__()
         self.image = ImageBranch(n_channels, widths, grad_checkpoint=grad_checkpoint) if n_channels > 0 else None
         self.lasco = (ImageBranch(lasco_channels, widths, grad_checkpoint=grad_checkpoint)
@@ -94,7 +94,7 @@ class ImageFusion(nn.Module):
         self.ts = TSCNN(ts_features, ts_width) if ts_features > 0 else None
         d = sum(b.embed_dim for b in (self.image, self.lasco) if b is not None) + (ts_width if ts_features > 0 else 0)
         self.head = nn.Sequential(nn.Dropout(dropout), nn.Linear(d, hidden), nn.GELU(),
-                                  nn.Dropout(dropout), nn.Linear(hidden, 1))
+                                  nn.Dropout(dropout), nn.Linear(hidden, out_dim))
 
     def forward(self, img, ts=None, lasco=None):
         z = []
@@ -104,4 +104,5 @@ class ImageFusion(nn.Module):
             z.append(self.lasco(lasco))
         if self.ts is not None:
             z.append(self.ts.features(ts))
-        return self.head(torch.cat(z, dim=1)).squeeze(-1)
+        out = self.head(torch.cat(z, dim=1))
+        return out.squeeze(-1) if out.shape[-1] == 1 else out    # (N,) as before, or (N, out_dim)
