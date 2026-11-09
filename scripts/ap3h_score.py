@@ -7,9 +7,10 @@ with three seeds:
   observed daily Ap is the unrounded mean of the eight observed ap;
 * uncertainty = the equal-weight mixture of the seeds' Gaussians in log1p ap, sampled (`--samples` per seed):
   CRPS in ap units and the coverage of the central 68 % and 95 % intervals;
-* references on the same days: persistence (the eight ap of the issue day; its daily Ap), 27-day recurrence
-  (the bins 27 days before the target day), the training-period mean, and SWPC's RSGA day-1 Ap (daily only,
-  issued 22 UT of the issue day);
+* references on the same days: persistence (the eight ap of the issue day, repeated; its daily Ap), 27-day
+  recurrence (the bins 27 days before each target bin), the training-period mean, and SWPC's RSGA day-k Ap for
+  target day k = 1, 2, 3 (daily only, issued 22 UT of the issue day);
+* with a 48 / 72-h horizon every target day is scored on its own (columns of day 1 unsuffixed, later days _d2, _d3);
 * differences against persistence and RSGA (MAE, monthly block bootstrap), and scores on storm days
   (observed daily Ap > 48), on 3-hour bins with ap ≥ 48 (Kp ≥ 5) and on CME days (DONKI, 72 h before issue).
 
@@ -62,8 +63,10 @@ def main() -> int:
     data = default_data_dir()
     f3 = pd.read_parquet(data / "features_3h.parquet")["ap"]
     rsga = pd.read_parquet(data / "swpc" / "rsga_ap.parquet")
-    rsga = rsga[(rsga.kind == "predicted") & (rsga.lead == 1)].drop_duplicates("target_date", keep="last")
-    rsga = rsga.set_index(pd.DatetimeIndex(rsga.target_date).as_unit("ns"))["ap"]
+    rsga_lead = {}                                                 # day-k forecast by target date, k = 1, 2, 3
+    for k in (1, 2, 3):
+        r = rsga[(rsga.kind == "predicted") & (rsga.lead == k)].drop_duplicates("target_date", keep="last")
+        rsga_lead[k] = r.set_index(pd.DatetimeIndex(r.target_date).as_unit("ns"))["ap"]
     tr = cfg["splits"]["A"]["train"]
     clim = float(f3.loc[tr[0]: tr[1]].mean())
 
@@ -84,40 +87,46 @@ def main() -> int:
         assert all((x["y"] == y).all() for x in z)
         pt = np.mean([np.expm1(x["mu"]) for x in z], axis=0)
         H = y.shape[1]
-        # references on the same bins: issue day's eight ap, the bins 27 days before the target day
+        # references on the same bins: the issue day's eight ap repeated, the bins 27 days before each target bin
         t0 = f3.index.get_indexer(dates + pd.Timedelta(days=1))
-        pers = np.stack([f3.to_numpy()[i - BINS: i - BINS + H] for i in t0])
+        pers = np.tile(np.stack([f3.to_numpy()[i - BINS: i] for i in t0]), (1, H // BINS))
         rec = np.stack([f3.to_numpy()[i - 27 * BINS: i - 27 * BINS + H] for i in t0])
-        day = lambda a: a[:, :BINS].mean(1)                                    # noqa: E731 (first target day)
-        yo, refs = day(y), {"model": pt, "persistence": pers, "recurrence27": rec, "climatology": np.full_like(y, clim)}
-        rg = rsga.reindex(dates + pd.Timedelta(days=1)).to_numpy()
+        refs = {"persistence": pers, "recurrence27": rec, "climatology": np.full_like(y, clim)}
         crps, c68, c95 = crps_and_cover(y, [x["mu"] for x in z], [x["sigma"] for x in z], args.samples)
-        storm_day, storm_bin = yo > STORM_AP, y >= STORM_AP
+        storm_bin = y >= STORM_AP
         cme = cme_days(dates, data / "events" / "donki_cme.parquet")
-        row = {"split": split, "model": model, "subset": subset, "L": L, "n_days": len(dates),
+        row = {"split": split, "model": model, "subset": subset, "L": L, "H": H, "n_days": len(dates),
                "mae_3h": np.abs(pt - y).mean(), "rmse_3h": np.sqrt(((pt - y) ** 2).mean()),
                "cc_3h": np.corrcoef(pt.ravel(), y.ravel())[0, 1],
-               "mae_day": np.abs(day(pt) - yo).mean(), "cc_day": np.corrcoef(day(pt), yo)[0, 1],
                "crps_3h": crps, "cover68_3h": c68, "cover95_3h": c95,
                "mae_3h_storm_bins": np.abs(pt - y)[storm_bin].mean() if storm_bin.any() else np.nan,
-               "n_storm_bins": int(storm_bin.sum()),
-               "mae_day_storm_days": np.abs(day(pt) - yo)[storm_day].mean() if storm_day.any() else np.nan,
-               "n_storm_days": int(storm_day.sum()),
-               "mae_day_cme_days": np.abs(day(pt) - yo)[cme].mean() if cme.any() else np.nan, "n_cme_days": int(cme.sum())}
+               "n_storm_bins": int(storm_bin.sum()), "n_cme_days": int(cme.sum())}
         row.update({f"mae_h{h + 1}": np.abs(pt[:, h] - y[:, h]).mean() for h in range(H)})
         for name, r in refs.items():
-            if name != "model":
-                row[f"{name}_mae_3h"] = np.abs(r - y).mean()
-                row[f"{name}_mae_day"] = np.abs(day(r) - yo).mean()
-        # differences in daily Ap against persistence and RSGA, monthly block bootstrap on the same days
-        for name, ref in (("persistence", day(pers)), ("rsga", rg)):
-            ok = ~np.isnan(ref)
-            b = block_bootstrap_diff(yo[ok], day(pt)[ok], ref[ok], dates[ok], cfg["bootstrap"]["n"], cfg["bootstrap"]["seed"])
-            row.update({f"vs_{name}_n": int(ok.sum()), f"vs_{name}_dmae_day": b["d_mae"],
-                        f"vs_{name}_dmae_day_lo": b["d_mae_lo"], f"vs_{name}_dmae_day_hi": b["d_mae_hi"],
-                        f"vs_{name}_dcc_day": b["d_corr"], f"vs_{name}_dcc_day_lo": b["d_corr_lo"],
-                        f"vs_{name}_dcc_day_hi": b["d_corr_hi"]})
-            row[f"{name}_ref_mae_day"] = np.abs(ref[ok] - yo[ok]).mean()
+            row[f"{name}_mae_3h"] = np.abs(r - y).mean()
+        # each target day k: daily Ap = mean of its eight bins; columns of day 1 keep their names, later days
+        # get the suffix _d<k>; RSGA's day-k forecast (issued 22 UT of the issue day) is the reference
+        for k in range(1, H // BINS + 1):
+            sl, sfx = slice((k - 1) * BINS, k * BINS), "" if k == 1 else f"_d{k}"
+            day = lambda a: a[:, sl].mean(1)                                   # noqa: E731
+            yo, pd_ = day(y), day(pt)
+            storm_day = yo > STORM_AP
+            row.update({f"mae_day{sfx}": np.abs(pd_ - yo).mean(), f"cc_day{sfx}": np.corrcoef(pd_, yo)[0, 1],
+                        f"mae_day_storm_days{sfx}": np.abs(pd_ - yo)[storm_day].mean() if storm_day.any() else np.nan,
+                        f"n_storm_days{sfx}": int(storm_day.sum()),
+                        f"mae_day_cme_days{sfx}": np.abs(pd_ - yo)[cme].mean() if cme.any() else np.nan})
+            for name, r in refs.items():
+                row[f"{name}_mae_day{sfx}"] = np.abs(day(r) - yo).mean()
+            rg = rsga_lead[k].reindex(dates + pd.Timedelta(days=k)).to_numpy() if k in rsga_lead else None
+            for name, ref in (("persistence", day(pers)), ("rsga", rg)):
+                if ref is None:
+                    continue
+                ok = ~np.isnan(ref)
+                b = block_bootstrap_diff(yo[ok], pd_[ok], ref[ok], dates[ok], cfg["bootstrap"]["n"], cfg["bootstrap"]["seed"])
+                row.update({f"vs_{name}_n{sfx}": int(ok.sum()), f"vs_{name}_dmae_day{sfx}": b["d_mae"],
+                            f"vs_{name}_dmae_day_lo{sfx}": b["d_mae_lo"], f"vs_{name}_dmae_day_hi{sfx}": b["d_mae_hi"],
+                            f"vs_{name}_dcc_day{sfx}": b["d_corr"], f"vs_{name}_dcc_day_lo{sfx}": b["d_corr_lo"],
+                            f"vs_{name}_dcc_day_hi{sfx}": b["d_corr_hi"], f"{name}_ref_mae_day{sfx}": np.abs(ref[ok] - yo[ok]).mean()})
         rows.append(row)
 
     df = pd.DataFrame(rows)

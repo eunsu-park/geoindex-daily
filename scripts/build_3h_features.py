@@ -4,7 +4,7 @@ Needs the GFZ file (scripts/build_daily_index_gfz.py --download) and the SOLARIS
 `space_weather` database. Checks that each day's eight ap average to GFZ's daily Ap, which GFZ rounds
 half to even (6.5 → 6, 7.5 → 8; checked 2010–2025).
 
-    python scripts/build_3h_features.py                  # 2010-05-01 .. 2026-01-01 → $GEOINDEX_DAILY_DATA/features_3h.parquet
+    python scripts/build_3h_features.py                  # 2010-05-01 .. 2026-01-04 → $GEOINDEX_DAILY_DATA/features_3h.parquet
 """
 import argparse
 import sys
@@ -24,7 +24,7 @@ def main() -> int:
     p.add_argument("--gfz", default=None, help="default: data dir/gfz/Kp_ap_Ap_SN_F107_since_1932.txt")
     p.add_argument("--out", default=None, help="default: data dir/features_3h.parquet")
     p.add_argument("--start", default="2010-05-01")
-    p.add_argument("--end", default="2026-01-01", help="exclusive")
+    p.add_argument("--end", default="2026-01-04", help="exclusive; three days past 2025 so 72-h targets of the last issue days exist")
     args = p.parse_args()
 
     data = default_data_dir()

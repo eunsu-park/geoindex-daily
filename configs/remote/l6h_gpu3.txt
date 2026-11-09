@@ -1,0 +1,15 @@
+# <tag> <split> <L> <arguments>; seeds 0 1 2. See l6h_gpu2.txt.
+l6h3 A 7 --script ap3h_train.py --model full --horizon-days 3 --grad-checkpoint
+l6h3 A 6 --script ap3h_train.py --model full --horizon-days 3 --grad-checkpoint
+l6h3 A 5 --script ap3h_train.py --model full --horizon-days 3 --grad-checkpoint
+l6h3 A 4 --script ap3h_train.py --model full --horizon-days 3 --grad-checkpoint
+l6h3 A 3 --script ap3h_train.py --model full --horizon-days 3 --grad-checkpoint
+l6h3 A 2 --script ap3h_train.py --model full --horizon-days 3 --grad-checkpoint
+l6h3 A 1 --script ap3h_train.py --model full --horizon-days 3 --grad-checkpoint
+l6cmeh2 A 7 --script ap3h_train.py --model full --subset cme --horizon-days 2 --grad-checkpoint
+l6cmeh2 A 6 --script ap3h_train.py --model full --subset cme --horizon-days 2 --grad-checkpoint
+l6cmeh2 A 5 --script ap3h_train.py --model full --subset cme --horizon-days 2 --grad-checkpoint
+l6cmeh2 A 4 --script ap3h_train.py --model full --subset cme --horizon-days 2 --grad-checkpoint
+l6cmeh2 A 3 --script ap3h_train.py --model full --subset cme --horizon-days 2 --grad-checkpoint
+l6cmeh2 A 2 --script ap3h_train.py --model full --subset cme --horizon-days 2 --grad-checkpoint
+l6cmeh2 A 1 --script ap3h_train.py --model full --subset cme --horizon-days 2 --grad-checkpoint

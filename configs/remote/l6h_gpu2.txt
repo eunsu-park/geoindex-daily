@@ -1,0 +1,17 @@
+# <tag> <split> <L> <arguments>; seeds 0 1 2. Phase l6, 48 / 72-hour horizons (user, 2026-11-09): separate models
+# for 48 h (--horizon-days 2) and 72 h (--horizon-days 3), full model on all days and on CME days, L = 1-7, fp16.
+# GPU 2: 48 h all days + 72 h CME days; GPU 3: 72 h all days + 48 h CME days (equal load by L x training days).
+l6h2 A 7 --script ap3h_train.py --model full --horizon-days 2 --grad-checkpoint
+l6h2 A 6 --script ap3h_train.py --model full --horizon-days 2 --grad-checkpoint
+l6h2 A 5 --script ap3h_train.py --model full --horizon-days 2 --grad-checkpoint
+l6h2 A 4 --script ap3h_train.py --model full --horizon-days 2 --grad-checkpoint
+l6h2 A 3 --script ap3h_train.py --model full --horizon-days 2 --grad-checkpoint
+l6h2 A 2 --script ap3h_train.py --model full --horizon-days 2 --grad-checkpoint
+l6h2 A 1 --script ap3h_train.py --model full --horizon-days 2 --grad-checkpoint
+l6cmeh3 A 7 --script ap3h_train.py --model full --subset cme --horizon-days 3 --grad-checkpoint
+l6cmeh3 A 6 --script ap3h_train.py --model full --subset cme --horizon-days 3 --grad-checkpoint
+l6cmeh3 A 5 --script ap3h_train.py --model full --subset cme --horizon-days 3 --grad-checkpoint
+l6cmeh3 A 4 --script ap3h_train.py --model full --subset cme --horizon-days 3 --grad-checkpoint
+l6cmeh3 A 3 --script ap3h_train.py --model full --subset cme --horizon-days 3 --grad-checkpoint
+l6cmeh3 A 2 --script ap3h_train.py --model full --subset cme --horizon-days 3 --grad-checkpoint
+l6cmeh3 A 1 --script ap3h_train.py --model full --subset cme --horizon-days 3 --grad-checkpoint
