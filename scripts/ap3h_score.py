@@ -83,8 +83,8 @@ def main() -> int:
             print(f"skip {model} {subset} L={L}: {len(seeds)} seeds"); continue
         z = [np.load(seeds[s]) for s in sorted(seeds)]
         dates = pd.DatetimeIndex(z[0]["dates"])
-        y = z[0]["y"]
-        assert all((x["y"] == y).all() for x in z)
+        y = np.round(z[0]["y"], 6)          # stored as expm1(log1p(ap)): 48 comes back as 47.999…
+        assert all(np.allclose(x["y"], y) for x in z)
         pt = np.mean([np.expm1(x["mu"]) for x in z], axis=0)
         H = y.shape[1]
         # references on the same bins: the issue day's eight ap repeated, the bins 27 days before each target bin
