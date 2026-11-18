@@ -45,6 +45,7 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--L", type=int, default=4)
+    p.add_argument("--suffix", default="", help="appended to the output names, e.g. _L1")
     args = p.parse_args()
     data = default_data_dir()
     f3 = pd.read_parquet(data / "features_3h.parquet")["ap"]
@@ -83,7 +84,7 @@ def main() -> int:
                                 f"{m}_rise": (pr[post].mean() - pr[pre].mean()) if pre.any() else np.nan})
                 rows.append(row)
     D = pd.DataFrame(rows)
-    D.to_csv(args.out / "pre_arrival_forecasts.csv", index=False)
+    D.to_csv(args.out / f"pre_arrival_forecasts{args.suffix}.csv", index=False)
 
     rng = np.random.default_rng(0)
     summ = []
@@ -100,7 +101,7 @@ def main() -> int:
         r["ts_detect_p30"] = (g.ts_p48_max >= 0.3).mean()
         summ.append(r)
     S_ = pd.DataFrame(summ)
-    S_.to_csv(args.out / "pre_arrival_summary.csv", index=False)
+    S_.to_csv(args.out / f"pre_arrival_summary{args.suffix}.csv", index=False)
 
     order = ["0–24 h", "24–48 h", "48–72 h", "after arrival"]
     fig, ax = plt.subplots(1, 3, figsize=(13, 4))
@@ -118,7 +119,7 @@ def main() -> int:
     ax[0].legend(fontsize=8, frameon=False)
     fig.suptitle(f"72-h model, CME-linked shocks followed by ap ≥ 48 within 24 h (n = {int(x.n_shocks.max())}), L = {args.L}; "
                  "forecast bins of the first day after arrival", fontsize=9)
-    fig.tight_layout(); fig.savefig(args.out / "fig4_pre_arrival.png", dpi=150); plt.close(fig)
+    fig.tight_layout(); fig.savefig(args.out / f"fig4_pre_arrival{args.suffix}.png", dpi=150); plt.close(fig)
     pd.set_option("display.width", 300)
     cols = ["horizon_h", "lead_group", "subset", "n_shocks", "obs_rise", "full_rise", "ts_rise", "d_rise", "d_rise_lo", "d_rise_hi",
             "full_p48_max", "ts_p48_max", "full_detect_p30", "ts_detect_p30", "full_mae", "ts_mae", "d_mae", "d_mae_lo", "d_mae_hi",

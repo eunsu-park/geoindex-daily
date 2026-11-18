@@ -42,7 +42,7 @@ def load(data, h, model, L):
     assert len(z) == 3
     mu, sg = np.stack([x["mu"] for x in z]), np.stack([x["sigma"] for x in z])
     p48 = (1 - norm.cdf((np.log1p(48.0) - mu) / sg)).mean(0)
-    return pd.DatetimeIndex(z[0]["dates"]).normalize(), np.round(z[0]["y"], 6), np.expm1(mu).mean(0), p48
+    return pd.DatetimeIndex(z[0]["dates"]).normalize(), np.round(z[0]["y"], 6), np.expm1(mu).mean(0), p48, np.expm1(mu)
 
 
 def boot_mean(e: np.ndarray, dates: pd.DatetimeIndex, n: int = 2000, seed: int = 0):
@@ -80,9 +80,9 @@ def main() -> int:
     for (h, k) in LEADS:
         sl = slice((k - 1) * 8, k * 8)
         for L in range(1, 8):
-            d, y, pf, qf = load(data, h, "full", L)
-            _, _, pt, qt = load(data, h, "ts", L)
-            y, pf, pt, qf, qt = y[:, sl], pf[:, sl], pt[:, sl], qf[:, sl], qt[:, sl]
+            d, y, pf, qf, sf = load(data, h, "full", L)
+            _, _, pt, qt, st_ = load(data, h, "ts", L)
+            y, pf, pt, qf, qt, sf, st_ = y[:, sl], pf[:, sl], pt[:, sl], qf[:, sl], qt[:, sl], sf[:, :, sl], st_[:, :, sl]
             tgt = d + pd.Timedelta(days=k)
             lab = labels(tgt, ips, hss, y.mean(1))
             for name in LABELS:
@@ -106,6 +106,9 @@ def main() -> int:
                 for res, a, b, yo in (("day", pf[m].mean(1), pt[m].mean(1), yy.mean(1)),):
                     bb = block_bootstrap_diff(yo, a, b, tgt[m], 2000, 0)
                     row.update({"d_mae_day": bb["d_mae"], "d_mae_day_lo": bb["d_mae_lo"], "d_mae_day_hi": bb["d_mae_hi"]})
+                # the same difference seed by seed (full seed i against time-series seed i)
+                row.update({f"d_mae_day_seed{i}": np.abs(sf[i][m].mean(1) - yy.mean(1)).mean() - np.abs(st_[i][m].mean(1) - yy.mean(1)).mean()
+                            for i in range(3)})
                 e = np.abs(pf[m] - yy).mean(1) - np.abs(pt[m] - yy).mean(1)        # per-day 3-hourly MAE difference
                 lo, hi = boot_mean(e, tgt[m])
                 row.update({"d_mae_3h": e.mean(), "d_mae_3h_lo": lo, "d_mae_3h_hi": hi})
@@ -114,7 +117,8 @@ def main() -> int:
     T.to_csv(args.out / "table3_event_type.csv", index=False)
 
     x = T[T.L == args.fig_L]
-    fig, ax = plt.subplots(1, 3, figsize=(13, 4))
+    fig, axs = plt.subplots(2, 3, figsize=(13, 7.5))
+    ax = axs[0]
     for j, (col, lab) in enumerate((("mae_day", "daily-Ap MAE"), ("mae_3h", "3-hourly ap MAE"), ("mae_intraday", "intra-day shape MAE"))):
         a = ax[j]
         for i, name in enumerate(LABELS):
@@ -127,7 +131,24 @@ def main() -> int:
         for sp in ("top", "right"):
             a.spines[sp].set_visible(False)
     ax[0].legend(fontsize=7, frameon=False)
-    fig.suptitle(f"Image contribution by event type (DONKI labels), L = {args.fig_L}; negative = the images help", fontsize=9)
+    # second row: peak-amplitude error and the storm-bin detection on days with an observed bin ≥ 48
+    for j, (col, lab) in enumerate((("peak_amp_error", "full − time series, peak-amplitude error"),)):
+        a = axs[1][0]
+        for name in LABELS:
+            g = x[x.label == name]
+            a.plot(range(len(g)), (g[f"full_{col}"] - g[f"ts_{col}"]).to_numpy(), "o-", label=name)
+        a.axhline(0, color="#333333", lw=0.8); a.set_ylabel(lab, fontsize=8)
+    for a, mod, ttl in ((axs[1][1], "full", "full model"), (axs[1][2], "ts", "time series")):
+        for name in ("CME", "HSS", "other"):
+            g = x[x.label == name]
+            a.plot(range(len(g)), g[f"{mod}_detect_p30"].to_numpy(), "o-", label=f"{name} (storm days {g.n_days_storm.min()}–{g.n_days_storm.max()})")
+        a.set_ylim(0, 0.35); a.set_ylabel(f"share of storm days detected, P ≥ 0.3 ({ttl})", fontsize=8)
+    axs[1][1].legend(fontsize=7, frameon=False)
+    for a in axs[1]:
+        a.set_xticks(range(len(LEADS)), [f"{h} h d{k}" for h, k in LEADS]); a.grid(color="#e5e5e5", lw=0.8); a.set_axisbelow(True)
+        for sp in ("top", "right"):
+            a.spines[sp].set_visible(False)
+    fig.suptitle(f"Image contribution by event type (DONKI labels), L = {args.fig_L}; top: negative = the images help", fontsize=9)
     fig.tight_layout(); fig.savefig(args.out / "fig3_event_type.png", dpi=150); plt.close(fig)
     cols = ["lead", "label", "n_days", "n_days_storm", "full_mae_day", "ts_mae_day", "d_mae_day", "d_mae_day_lo", "d_mae_day_hi",
             "d_mae_3h", "d_mae_3h_lo", "d_mae_3h_hi", "full_mae_intraday", "ts_mae_intraday", "full_cc_intraday", "ts_cc_intraday",
