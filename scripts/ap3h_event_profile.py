@@ -7,10 +7,11 @@ day 1 from the 24-h models and days 1–3 from the 72-h models, each target day 
 (chained), for the full and the time-series model, with the full 24-h model's 68 / 95 % bands (mixture of the three
 seeds). OMNI and the shock times are used only to describe the event, never as model inputs.
 
-Event metrics per lead and model (written to --out/<event>_metrics.csv): observed onset = first bin with ap ≥ 48 in
-the window; forecast onset = first bin whose forecast median reaches 48 (missed if none) and first bin with
-P(ap ≥ 48) ≥ 0.1 and ≥ 0.3 from the forecast distribution; onset errors in hours (negative = early); peak time and
-amplitude errors; MAE over the window.
+Event metrics per lead and model (written to --out/<event>_metrics.csv), in the storm interval [shock − 6 h,
+shock + 48 h) of the event's main shock (--shock, DONKI IPS): observed onset = first bin with ap ≥ 48; forecast onset =
+first bin from shock − 24 h on whose forecast median reaches 48 (missed if none) and first bin with P(ap ≥ 48) ≥ 0.1
+and ≥ 0.3; onset errors in hours (negative = early); peak time and amplitude errors in the storm interval; MAE over
+the window and over the storm interval.
 
     python scripts/ap3h_event_profile.py --event 2024-05 --start 2024-05-08 --end 2024-05-14 \
         --out ~/Projects/GeoIndex/daily/physical_analysis
@@ -77,6 +78,7 @@ def main() -> int:
     p.add_argument("--event", required=True)
     p.add_argument("--start", required=True)
     p.add_argument("--end", required=True, help="exclusive")
+    p.add_argument("--shock", required=True, help="main shock time (DONKI IPS), UT")
     p.add_argument("--L", type=int, default=4)
     p.add_argument("--cme-lookback", type=int, default=4)
     p.add_argument("--out", type=Path, required=True)
@@ -146,21 +148,27 @@ def main() -> int:
     fig.tight_layout(); fig.savefig(args.out / f"{args.event}_profile.png", dpi=140); plt.close(fig)
 
     # ---- event metrics --------------------------------------------------------------------------------------------
-    on_obs = first(ap, ap >= STORM_AP)
-    pk_obs, pk_val = ap.idxmax(), ap.max()
+    sh = pd.Timestamp(args.shock)
+    st = (ap.index >= sh - pd.Timedelta(hours=6)) & (ap.index < sh + pd.Timedelta(hours=48))
+    ap_s = ap[st]
+    on_obs = first(ap_s, ap_s >= STORM_AP)
+    pk_obs, pk_val = ap_s.idxmax(), ap_s.max()
     rows = []
     for (h, model, k), f in fc.items():
-        on_f = first(f.med, f.med >= STORM_AP)
-        on_p1, on_p3 = first(f.p48, f.p48 >= 0.1), first(f.p48, f.p48 >= 0.3)
+        fe = f[ap.index >= sh - pd.Timedelta(hours=24)]
+        fs = f[st]
+        on_f = first(fe.med, fe.med >= STORM_AP)
+        on_p1, on_p3 = first(fe.p48, fe.p48 >= 0.1), first(fe.p48, fe.p48 >= 0.3)
         hrs = lambda t: (t - on_obs) / pd.Timedelta(hours=1) if pd.notna(t) and pd.notna(on_obs) else np.nan  # noqa: E731
         rows.append({"event": args.event, "model_horizon_h": h, "model": model, "target_day": k, "L": args.L,
                      "observed_onset": on_obs, "forecast_onset_median": on_f, "onset_error_h_median": hrs(on_f),
                      "missed_median": pd.isna(on_f), "onset_p48_ge_0.1": on_p1, "onset_error_h_p10": hrs(on_p1),
                      "onset_p48_ge_0.3": on_p3, "onset_error_h_p30": hrs(on_p3),
-                     "observed_peak_time": pk_obs, "observed_peak_ap": pk_val, "forecast_peak_time": f.med.idxmax(),
-                     "peak_time_error_h": (f.med.idxmax() - pk_obs) / pd.Timedelta(hours=1),
-                     "forecast_peak_ap": f.med.max(), "peak_amplitude_error": f.med.max() - pk_val,
-                     "mae_window": float(np.abs(f.med - ap).mean()), "max_p48": f.p48.max()})
+                     "shock": sh, "observed_peak_time": pk_obs, "observed_peak_ap": pk_val,
+                     "forecast_peak_time": fs.med.idxmax(), "peak_time_error_h": (fs.med.idxmax() - pk_obs) / pd.Timedelta(hours=1),
+                     "forecast_peak_ap": fs.med.max(), "peak_amplitude_error": fs.med.max() - pk_val,
+                     "mae_window": float(np.abs(f.med - ap).mean()), "mae_storm": float(np.abs(fs.med - ap_s).mean()),
+                     "max_p48_storm": fs.p48.max()})
     pd.DataFrame(rows).to_csv(args.out / f"{args.event}_metrics.csv", index=False)
     ev = pd.DataFrame({"kind": ["cme"] * len(cme) + ["enlil_arrival"] * len(runs) + ["shock"] * len(ips),
                        "time": list(cme.cme_start_time) + list(runs.arrival) + list(ips.shock_time),
@@ -170,7 +178,7 @@ def main() -> int:
     ev.to_csv(args.out / f"{args.event}_timeline.csv", index=False)
     print(pd.DataFrame(rows)[["model_horizon_h", "model", "target_day", "onset_error_h_median", "onset_error_h_p10",
                               "onset_error_h_p30", "peak_time_error_h", "forecast_peak_ap", "peak_amplitude_error",
-                              "mae_window", "max_p48"]].round(2).to_string(index=False))
+                              "mae_storm", "max_p48_storm"]].round(2).to_string(index=False))
     print(f"observed onset {on_obs}, peak {pk_val} at {pk_obs}; CMEs {len(cme)}, ENLIL arrivals {len(runs)}, shocks {len(ips)}")
     return 0
 
