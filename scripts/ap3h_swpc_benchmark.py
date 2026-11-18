@@ -7,7 +7,7 @@ forecast issued on D (one issue for all three days) by issue date and 3-hour sta
 models' own ground truth. Outputs under --out (README.md in the folder describes them):
 
 * manifests/: split-A issue dates, run registry (npz and checkpoint per run), archive coverage by month;
-* processed/: model predictions (long, parquet), matched table (parquet), daily-Ap cross-check;
+* processed/: model predictions (long, parquet), matched table (parquet; every group, L and seed), daily-Ap cross-check;
 * metrics/: 3-hourly overall / by target day / by step / storm and CME bins, derived daily Ap, paired bootstrap;
 * qc/: missing issue dates, alignment audit, input-availability audit.
 
@@ -173,11 +173,13 @@ def main() -> int:
         ens = seeds.mean(0)
         pers = np.tile(np.stack([f3.to_numpy()[i - BINS: i] for i in f3.index.get_indexer(d + pd.Timedelta(days=1))]), (1, H // BINS))
         base = {"model_horizon_h": h, "model_group": grp, "input_length_days": L, "n_issue_dates": len(d)}
-        if L == 4 or grp == "full":
-            for s in range(3):
-                mt.append(pd.DataFrame({
+        steps = np.tile(np.arange(1, H + 1), len(d))
+        for s in range(3):
+            mt.append(pd.DataFrame({
                     "issue_date": np.repeat(d, H), "model_horizon_h": h, "model_group": grp, "input_length_days": L, "seed": s,
-                    "swpc_issue_utc": np.repeat(sw_iss.loc[d].to_numpy(), H), "lead_step_3h": np.tile(np.arange(1, H + 1), len(d)),
+                    "swpc_issue_utc": np.repeat(sw_iss.loc[d].to_numpy(), H), "lead_step_3h": steps,
+                    "target_day_k": (steps - 1) // BINS + 1,
+                    "target_start_utc": np.repeat(d + pd.Timedelta(days=1), H) + pd.to_timedelta(3 * (steps - 1), unit="h"),
                     "observed_ap": y.ravel(), "geoi_ap_pred": seeds[s].ravel(), "swpc_kp_forecast": kp.ravel(),
                     "swpc_ap_converted": sa.ravel(), "source_file": np.repeat(sw_file.loc[d].to_numpy(), H),
                     "is_cme_issue_day": np.repeat(is_cme, H), "is_storm_3h_bin": (y >= STORM_AP).ravel(),

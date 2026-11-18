@@ -34,6 +34,7 @@ def main() -> int:
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--L", type=int, default=4)
     p.add_argument("--case", nargs=2, default=["2024-05-08", "2024-05-11"], help="first and last issue date of the case")
+    p.add_argument("--case-name", default="", help="suffix of the case figures, e.g. _202410 (default: none, May 2024)")
     args = p.parse_args()
     m, fig_dir = args.out / "metrics", args.out / "figures"
     fig_dir.mkdir(parents=True, exist_ok=True)
@@ -109,7 +110,7 @@ def main() -> int:
         a.set_ylabel("ap"); a.set_title(f"issued {iss:%Y-%m-%d} (GeoIndex origin 00 UT next day; SWPC {g.swpc_issue_utc.iloc[0]})", fontsize=8)
         style(a)
     np.atleast_1d(ax)[0].legend(fontsize=7, frameon=False, ncol=3)
-    fig.tight_layout(); fig.savefig(fig_dir / "storm_case_72h_issue_fixed.png", dpi=150); plt.close(fig)
+    fig.tight_layout(); fig.savefig(fig_dir / f"storm_case_72h_issue_fixed{args.case_name}.png", dpi=150); plt.close(fig)
 
     g = mt[(mt.model_horizon_h == 24) & mt.issue_date.between(issues[0] - pd.Timedelta(days=3), issues[-1] + pd.Timedelta(days=3))]
     e = g.groupby("t").agg(obs=("observed_ap", "first"), geo=("geoi_ap_pred", "mean"), sw=("swpc_ap_converted", "first"))
@@ -119,7 +120,7 @@ def main() -> int:
     a.step(e.index, e.sw, where="post", color=C["swpc"], lw=1.5, ls="--", label="SWPC day 1, each day's issue")
     a.set_ylabel("ap"); a.legend(fontsize=8, frameon=False); style(a)
     a.set_title("Day-1 forecasts of consecutive daily issues, chained (not one issue)", fontsize=9)
-    fig.tight_layout(); fig.savefig(fig_dir / "storm_case_24h_chained.png", dpi=150); plt.close(fig)
+    fig.tight_layout(); fig.savefig(fig_dir / f"storm_case_24h_chained{args.case_name}.png", dpi=150); plt.close(fig)
     print("figures in", fig_dir)
     return 0
 
