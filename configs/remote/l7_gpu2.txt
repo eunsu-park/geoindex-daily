@@ -1,0 +1,7 @@
+# <tag> <split> <L> <arguments>; seeds 0 1 2. Work order 2026-11-22: Model A (optional CME residual) at L = 4 for
+# 24 / 48 / 72 h, fp16, gradient checkpointing, same settings as Model 0 (l6, l6h2, l6h3). Then the Model 0 reuse
+# check: Model 0 at 24 h, L = 4 retrained on this commit, against l6 under the seed-spread rule.
+l7a A 4 --script ap3h_train.py --model full --cme --grad-checkpoint
+l7ah2 A 4 --script ap3h_train.py --model full --cme --horizon-days 2 --grad-checkpoint
+l7ah3 A 4 --script ap3h_train.py --model full --cme --horizon-days 3 --grad-checkpoint
+l7r A 4 --script ap3h_train.py --model full --grad-checkpoint

@@ -1,0 +1,5 @@
+# <tag> <split> <L> <arguments>; seeds 0 1 2. Work order 2026-11-22: Model B (optional CME + Solar-MACH footpoint
+# residuals) at L = 4 for 24 / 48 / 72 h; see l7_gpu2.txt.
+l7b A 4 --script ap3h_train.py --model full --footpoint --grad-checkpoint
+l7bh2 A 4 --script ap3h_train.py --model full --footpoint --horizon-days 2 --grad-checkpoint
+l7bh3 A 4 --script ap3h_train.py --model full --footpoint --horizon-days 3 --grad-checkpoint
