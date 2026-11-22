@@ -48,3 +48,39 @@ def scores(y: np.ndarray, mu: np.ndarray, sigma: np.ndarray) -> dict:
            "cover68_3h": (np.abs(ly - mu) <= sigma).mean(), "cover95_3h": (np.abs(ly - mu) <= 1.96 * sigma).mean()}
     out.update({f"mae_h{h + 1}": np.abs(p[:, h] - y[:, h]).mean() for h in range(y.shape[1])})
     return out
+
+
+CME_SLOTS, CME_FEATURES = 3, 5               # per slot: speed, latitude, sin / cos longitude, time since onset
+FP_SPEEDS = (300, 400, 600)
+
+
+def optional_aux(table: pd.DataFrame, days: pd.DatetimeIndex, train: np.ndarray, footpoint: bool = False,
+                 fp_shift_deg: float = 0.0) -> np.ndarray:
+    """The `aux` input of OptionalInputFusion (Models A / B) per issue day, from events/ap3h_cme_footpoint.parquet.
+
+    Per CME slot: speed, latitude and time since onset standardised with the filled slots of the training days only,
+    sin and cos of the (Stonyhurst) longitude; zero where the slot is empty. Then the slot masks; then, with
+    `footpoint`, sin / cos of the footpoint longitude at 300 / 400 / 600 km/s, each shifted by `fp_shift_deg` (the
+    co-authors' phase-shift control; 0 for Model B).
+    """
+    t = table.set_index("issue_day").reindex(days)
+    assert t.cme_status.notna().all(), "issue day missing from the CME / footpoint table"
+    m = np.stack([t[f"cme{k}_mask"].to_numpy(float) for k in range(1, CME_SLOTS + 1)], axis=1)
+    feats = []
+    for k in range(1, CME_SLOTS + 1):
+        lon = np.deg2rad(t[f"cme{k}_lon"].to_numpy(float))
+        feats.append(np.stack([t[f"cme{k}_speed"], t[f"cme{k}_lat"], np.sin(lon), np.cos(lon), t[f"cme{k}_elapsed_h"]],
+                              axis=1).astype(float))
+    X = np.stack(feats, axis=1)                                        # (N, S, F)
+    filled_train = (m > 0) & train[:, None]
+    for j in (0, 1, 4):                                                 # standardise on training slots only
+        v = X[:, :, j][filled_train]
+        X[:, :, j] = (X[:, :, j] - v.mean()) / (v.std() + 1e-8)
+    X = np.where(m[:, :, None] > 0, X, 0.0)
+    parts = [X.reshape(len(days), -1), m]
+    if footpoint:
+        fp = np.deg2rad(np.stack([t[f"fp{v}_lon"].to_numpy(float) + fp_shift_deg for v in FP_SPEEDS], axis=1))
+        parts.append(np.concatenate([np.sin(fp), np.cos(fp)], axis=1))
+    out = np.concatenate(parts, axis=1).astype(np.float32)
+    assert np.isfinite(out).all()
+    return out
