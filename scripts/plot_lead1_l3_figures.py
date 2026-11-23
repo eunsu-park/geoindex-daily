@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geoindex_daily.daily_index import default_data_dir  # noqa: E402
 from geoindex_daily.frames import cache_path  # noqa: E402
 
-VAULT_FIG = Path.home() / "Vaults/GeoIndex/experiments/figures"
+VAULT_FIG = Path.home() / "Vaults/Projects_NJIT/GeoIndex/experiments/figures"
 LENGTHS = [1, 2, 3, 4, 5, 6, 7]
 ARMS = {"D": ("A_cnn", "Ap", "#1f77b4"), "B": ("B_cnn", "Ap + X-ray", "#2ca02c"),
         "E": ("E_cnn", "Ap + X-ray + wind", "#d62728")}

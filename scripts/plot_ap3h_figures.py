@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geoindex_daily.daily_index import default_data_dir  # noqa: E402
 from geoindex_daily.lead1 import block_bootstrap_diff  # noqa: E402
 
-VAULT_FIG = Path.home() / "Vaults/GeoIndex/experiments/figures"
+VAULT_FIG = Path.home() / "Vaults/Projects_NJIT/GeoIndex/experiments/figures"
 LENGTHS = range(1, 8)
 C_FULL, C_TS, C_REF = "#1f4e79", "#8c8c8c", "#b04a2f"
 

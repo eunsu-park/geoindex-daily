@@ -7,7 +7,7 @@ combination, one panel per L).
 
     python scripts/lead1_l5_interim.py ~/Projects/GeoIndex/postbox/remote/l5-full-gpu*-interim-20261031 \
         --csv ~/Projects/GeoIndex/daily/lead1/l5-interim-20261031/l5_interim_scores.csv \
-        --fig ~/Vaults/GeoIndex/experiments/figures/l5_interim_vs_b2.png
+        --fig ~/Vaults/Projects_NJIT/GeoIndex/experiments/figures/l5_interim_vs_b2.png
 """
 import argparse
 import re
